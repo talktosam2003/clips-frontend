@@ -25,10 +25,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
-    // Load from local storage on mount
-    const storedUser = localStorage.getItem("clipcash_user");
-    if (storedUser) {
-      setUserState(JSON.parse(storedUser));
+    // Use sessionStorage so the session is cleared when the browser tab closes.
+    // Validate the stored shape before trusting it.
+    try {
+      const storedUser = sessionStorage.getItem("clipcash_user");
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          typeof parsed.id === "string" &&
+          typeof parsed.email === "string" &&
+          typeof parsed.onboardingStep === "number" &&
+          !("password" in parsed) // reject any object that somehow has a password field
+        ) {
+          setUserState(parsed as User);
+        } else {
+          sessionStorage.removeItem("clipcash_user");
+        }
+      }
+    } catch {
+      sessionStorage.removeItem("clipcash_user");
     }
     setIsLoading(false);
   }, []);
@@ -36,9 +53,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const setUser = (newUser: User | null) => {
     setUserState(newUser);
     if (newUser) {
-      localStorage.setItem("clipcash_user", JSON.stringify(newUser));
+      // Only persist the public, non-sensitive fields — never include passwords
+      const safeUser: User = {
+        id: newUser.id,
+        email: newUser.email,
+        name: newUser.name,
+        username: newUser.username,
+        onboardingStep: newUser.onboardingStep,
+        profile: newUser.profile,
+      };
+      sessionStorage.setItem("clipcash_user", JSON.stringify(safeUser));
     } else {
-      localStorage.removeItem("clipcash_user");
+      sessionStorage.removeItem("clipcash_user");
     }
   };
 

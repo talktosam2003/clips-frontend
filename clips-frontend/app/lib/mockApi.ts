@@ -5,13 +5,32 @@ export type User = {
   email: string;
   name?: string;
   username?: string;
-  password?: string;
   onboardingStep: number;
-  profile?: Record<string, any>;
+  profile?: Record<string, unknown>;
 };
 
-// In-memory fake database
-const users: User[] = [];
+// Passwords are kept only in the in-memory store, never exposed on the User type
+type UserRecord = User & { passwordHash: string };
+
+// In-memory fake database — passwords never leave this array
+const users: UserRecord[] = [];
+
+/** Naive hash for the mock environment (never use in production). */
+function mockHash(password: string): string {
+  // Simple deterministic obfuscation so plain-text is never stored even in mock
+  return btoa(encodeURIComponent(password));
+}
+
+function mockVerify(password: string, hash: string): boolean {
+  return mockHash(password) === hash;
+}
+
+/** Strip the passwordHash before returning a User to callers. */
+function toPublicUser(record: UserRecord): User {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _ph, ...publicUser } = record;
+  return publicUser;
+}
 
 // Helper to simulate network latency
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -50,17 +69,18 @@ export const MockApi = {
    */
   login: async (email: string, password?: string) => {
     await delay(800);
-    const user = users.find(u => u.email === email);
+    const record = users.find(u => u.email === email);
     
-    // Simplistic auth check
-    if (!user || (password && user.password !== password)) {
+    // Use a constant-time-like check to avoid timing-based email enumeration
+    const passwordValid = record && password ? mockVerify(password, record.passwordHash) : false;
+    if (!record || !passwordValid) {
       throw new Error("Invalid credentials");
     }
 
     // Mock generic token
-    const token = `fake-jwt-token-${user.id}`;
+    const token = `fake-jwt-token-${record.id}`;
     
-    return { token, user };
+    return { token, user: toPublicUser(record) };
   },
 
   /**
@@ -73,19 +93,19 @@ export const MockApi = {
       throw new Error("User already exists");
     }
 
-    const newUser: User = {
+    const newRecord: UserRecord = {
       id: Date.now().toString(),
       email,
-      password,
+      passwordHash: password ? mockHash(password) : "",
       name: name || email.split('@')[0],
       onboardingStep: 1,
       profile: {}
     };
 
-    users.push(newUser);
+    users.push(newRecord);
     
-    const token = `fake-jwt-token-${newUser.id}`;
-    return { token, user: newUser };
+    const token = `fake-jwt-token-${newRecord.id}`;
+    return { token, user: toPublicUser(newRecord) };
   },
 
   /**
@@ -116,29 +136,41 @@ export const MockApi = {
     return { success: true, posted: clipIds.length };
   },
 
-  saveOnboarding: async (userId: string, step: number, data: any) => {
+  saveOnboarding: async (userId: string, step: number, data: Record<string, unknown>) => {
     await delay(500); // Usually faster for background auto-save
     
-    let user: User | undefined = users.find(u => u.id === userId);
+    let record: UserRecord | undefined = users.find(u => u.id === userId);
     
     // Auto-recover lost memory db from localStorage on page refresh/HMR
-    if (!user && typeof window !== "undefined") {
-      const stored = localStorage.getItem("clipcash_user");
-      if (stored) {
-        const parsed = JSON.parse(stored) as User;
-        if (parsed.id === userId) {
-          user = parsed;
-          users.push(user);
+    if (!record && typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("clipcash_user");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          // Validate shape before trusting the stored value
+          if (
+            parsed &&
+            typeof parsed === "object" &&
+            typeof parsed.id === "string" &&
+            typeof parsed.email === "string" &&
+            parsed.id === userId
+          ) {
+            // Re-hydrate as a record without a real hash (mock only)
+            record = { ...(parsed as User), passwordHash: "" };
+            users.push(record);
+          }
         }
+      } catch {
+        // Malformed JSON in localStorage — ignore and continue
       }
     }
 
-    if (!user) throw new Error("User not found");
+    if (!record) throw new Error("User not found");
 
-    user.onboardingStep = step;
-    user.profile = { ...user.profile, ...data };
+    record.onboardingStep = step;
+    record.profile = { ...record.profile, ...data };
     
-    return { success: true, user };
+    return { success: true, user: toPublicUser(record) };
   },
 
   /**

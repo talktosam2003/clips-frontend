@@ -33,6 +33,33 @@ interface WalletContextType extends WalletState {
 
 const STORAGE_KEY = "clipcash_wallet";
 
+/**
+ * Allowed chain IDs.
+ * 0x1 = Ethereum Mainnet, 0xaa36a7 = Sepolia testnet.
+ * Extend this set when adding support for other networks.
+ */
+const ALLOWED_CHAIN_IDS = new Set(["0x1", "0xaa36a7"]);
+
+/** Validate an Ethereum address: 0x followed by exactly 40 hex characters. */
+function isValidEthAddress(address: unknown): address is string {
+  return typeof address === "string" && /^0x[0-9a-fA-F]{40}$/.test(address);
+}
+
+/** Validate a chainId: must be a hex string like "0x1". */
+function isValidChainId(chainId: unknown): chainId is string {
+  return typeof chainId === "string" && /^0x[0-9a-fA-F]+$/.test(chainId);
+}
+
+/** Wrap a promise with a timeout to prevent indefinite UI hangs. */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
 const defaultState: WalletState = {
   address: null,
   chainId: null,
@@ -60,24 +87,35 @@ export function truncateAddress(address: string): string {
 export function WalletProvider({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<WalletState>(defaultState);
 
-  // Restore persisted session on mount
+  // Restore persisted session on mount.
+  // sessionStorage is used instead of localStorage so the session is cleared
+  // when the browser tab is closed, reducing the window for session hijacking.
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(STORAGE_KEY);
+      const stored = sessionStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed: Partial<WalletState> = JSON.parse(stored);
-        if (parsed.address && parsed.walletType) {
+        // Validate address and walletType before trusting stored data.
+        // Reject anything that doesn't look like a real Ethereum address.
+        if (
+          isValidEthAddress(parsed.address) &&
+          (parsed.walletType === "metamask" || parsed.walletType === "phantom")
+        ) {
           setState((prev) => ({
             ...prev,
             address: parsed.address!,
-            chainId: parsed.chainId ?? null,
+            chainId: isValidChainId(parsed.chainId) ? parsed.chainId : null,
             walletType: parsed.walletType!,
             isConnected: true,
           }));
+        } else {
+          // Stored data is invalid or tampered — clear it
+          sessionStorage.removeItem(STORAGE_KEY);
         }
       }
     } catch {
-      // Ignore malformed storage
+      // Malformed JSON — clear it
+      sessionStorage.removeItem(STORAGE_KEY);
     }
   }, []);
 
@@ -87,21 +125,34 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     if (!ethereum) return;
 
     const handleAccountsChanged = (accounts: unknown) => {
+      // Runtime type guard — never trust provider data blindly
+      if (!Array.isArray(accounts) || !accounts.every((a) => typeof a === "string")) return;
       const accs = accounts as string[];
-      if (!accs || accs.length === 0) {
+      if (accs.length === 0) {
         // User disconnected from MetaMask side
         handleDisconnect();
       } else {
         const address = accs[0];
+        // Validate address format before persisting
+        if (!isValidEthAddress(address)) return;
         setState((prev) => ({ ...prev, address }));
         persistSession({ address, chainId: state.chainId, walletType: "metamask" });
       }
     };
 
     const handleChainChanged = (chainId: unknown) => {
-      const id = chainId as string;
-      setState((prev) => ({ ...prev, chainId: id }));
-      persistSession({ address: state.address, chainId: id, walletType: state.walletType });
+      if (!isValidChainId(chainId)) return;
+      // If the user switches to an unsupported network, disconnect
+      if (!ALLOWED_CHAIN_IDS.has(chainId)) {
+        handleDisconnect();
+        setState((prev) => ({
+          ...prev,
+          error: "Unsupported network. Please switch to Ethereum Mainnet or Sepolia.",
+        }));
+        return;
+      }
+      setState((prev) => ({ ...prev, chainId }));
+      persistSession({ address: state.address, chainId, walletType: state.walletType });
     };
 
     ethereum.on("accountsChanged", handleAccountsChanged);
@@ -116,15 +167,15 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
 
   function persistSession(data: { address: string | null; chainId: string | null; walletType: WalletType | null }) {
     if (data.address) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } else {
-      localStorage.removeItem(STORAGE_KEY);
+      sessionStorage.removeItem(STORAGE_KEY);
     }
   }
 
   function handleDisconnect() {
     setState({ ...defaultState });
-    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(STORAGE_KEY);
   }
 
   const connectMetaMask = useCallback(async () => {
@@ -139,16 +190,47 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
 
     try {
-      const accounts = (await window.ethereum.request({
-        method: "eth_requestAccounts",
-      })) as string[];
+      // Request accounts with a 30-second timeout to prevent UI freeze
+      const rawAccounts = await withTimeout(
+        window.ethereum.request({ method: "eth_requestAccounts" }),
+        30_000,
+        "eth_requestAccounts"
+      );
 
-      if (!accounts || accounts.length === 0) {
+      // Runtime type guard — never trust the provider blindly
+      if (!Array.isArray(rawAccounts) || !rawAccounts.every((a) => typeof a === "string")) {
+        throw new Error("Unexpected response from wallet provider.");
+      }
+      const accounts = rawAccounts as string[];
+
+      if (accounts.length === 0) {
         throw new Error("No accounts returned. Please unlock MetaMask and try again.");
       }
 
-      const chainId = (await window.ethereum.request({ method: "eth_chainId" })) as string;
       const address = accounts[0];
+
+      // Validate the address format before storing it
+      if (!isValidEthAddress(address)) {
+        throw new Error("Wallet returned an invalid address. Please try again.");
+      }
+
+      const rawChainId = await withTimeout(
+        window.ethereum.request({ method: "eth_chainId" }),
+        10_000,
+        "eth_chainId"
+      );
+
+      if (!isValidChainId(rawChainId)) {
+        throw new Error("Unexpected chain ID format from wallet provider.");
+      }
+      const chainId = rawChainId;
+
+      // Enforce network allowlist
+      if (!ALLOWED_CHAIN_IDS.has(chainId)) {
+        throw new Error(
+          "Unsupported network. Please switch MetaMask to Ethereum Mainnet or Sepolia."
+        );
+      }
 
       setState({
         address,
