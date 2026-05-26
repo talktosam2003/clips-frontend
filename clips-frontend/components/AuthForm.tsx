@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { MockApi } from "../app/lib/mockApi";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -29,6 +29,7 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
   const handleAuthSubmit = async (e: React.FormEvent) => {
@@ -39,10 +40,12 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
     try {
       if (currentMode === "login") {
         const res = await MockApi.login(email, password);
-        setUser(res.user);
+        setSuccess(true);
+        setTimeout(() => setUser(res.user), 600);
       } else {
         const res = await MockApi.signup(email, password, fullName);
-        setUser(res.user);
+        setSuccess(true);
+        setTimeout(() => setUser(res.user), 600);
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -58,7 +61,7 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
   };
 
   return (
-    <div id="auth-card" className="w-[440px] bg-[#0E1512]/80 backdrop-blur-md rounded-[20px] p-[38px] shadow-[0_4px_40px_rgba(0,0,0,0.5)] border border-[#1E2A24] relative overflow-hidden">
+    <div id="auth-card" className="w-full max-w-[440px] bg-[#0E1512]/80 backdrop-blur-md rounded-[20px] p-6 sm:p-[38px] shadow-[0_4px_40px_rgba(0,0,0,0.5)] border border-[#1E2A24] relative overflow-hidden">
       {/* Decorative inner glow */}
       <div className="absolute -top-24 -right-24 w-60 h-60 bg-brand/10 rounded-full blur-[60px] pointer-events-none" />
       
@@ -129,11 +132,23 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
 
         <button 
           type="submit" 
-          disabled={loading}
-          className="w-full bg-brand hover:bg-brand-hover text-black py-[15px] rounded-[12px] font-bold text-[15px] flex justify-center items-center gap-2 transition-all disabled:opacity-70 mt-[6px]"
+          disabled={loading || success}
+          className={`w-full py-[15px] rounded-[12px] font-bold text-[15px] flex justify-center items-center gap-2 transition-all mt-[6px] ${
+            success
+              ? "bg-brand/20 border border-brand/40 text-brand cursor-default"
+              : "bg-brand hover:bg-brand-hover text-black disabled:opacity-70"
+          }`}
         >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin text-black" /> : 
-            (currentMode === "login" ? "Continue with Email" : "Create Account")}
+          {success ? (
+            <>
+              <CheckCircle2 className="w-5 h-5 text-brand animate-in zoom-in duration-300" />
+              {currentMode === "login" ? "Signed in!" : "Account created!"}
+            </>
+          ) : loading ? (
+            <Loader2 className="w-5 h-5 animate-spin text-black" />
+          ) : (
+            currentMode === "login" ? "Continue with Email" : "Create Account"
+          )}
         </button>
       </form>
       

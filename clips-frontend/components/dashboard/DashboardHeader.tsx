@@ -32,17 +32,15 @@ export default function DashboardHeader({ onMenuClick }: HeaderProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="hidden sm:block">
-          <WalletConnectButton compact />
-        </div>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <WalletConnectButton compact />
 
         <button className="w-11 h-11 rounded-xl bg-[#111111] border border-white/5 flex items-center justify-center text-[#8e9895] hover:text-white transition-colors relative">
           <Bell className="w-5 h-5" />
           <div className="absolute top-3 right-3 w-2 h-2 bg-brand rounded-full border-2 border-[#111111]" />
         </button>
         
-        <button className="bg-brand hover:bg-brand-hover text-black px-6 py-3 rounded-xl font-bold text-[14px] flex items-center justify-center gap-2.5 transition-all shadow-[0_0_20px_rgba(0,229,143,0.15)] hover:shadow-[0_0_30px_rgba(0,229,143,0.25)] active:scale-[0.97]">
+        <button className="hidden sm:flex bg-brand hover:bg-brand-hover text-black px-6 py-3 rounded-xl font-bold text-[14px] items-center justify-center gap-2.5 transition-all shadow-[0_0_20px_rgba(0,229,143,0.15)] hover:shadow-[0_0_30px_rgba(0,229,143,0.25)] active:scale-[0.97]">
           <Upload className="w-4.5 h-4.5" />
           Quick Upload
         </button>

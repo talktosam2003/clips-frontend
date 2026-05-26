@@ -2,13 +2,13 @@
 
 import React, { useState } from "react";
 import { 
-  Send, 
   Trash2, 
   Download, 
   Zap, 
-  MoveRight,
   Hexagon,
-  Info
+  AlertCircle,
+  X,
+  Loader2
 } from "lucide-react";
 import { calculateMintCost, formatSol } from "@/app/lib/mintUtils";
 
@@ -19,6 +19,9 @@ interface SelectionFooterProps {
 }
 
 export default function SelectionFooter({ count, onMint, isMinting = false }: SelectionFooterProps) {
+  const [postError, setPostError] = useState<string | null>(null);
+  const [retryCount] = useState(0);
+
   if (count === 0) return null;
 
   const { gasFee, storageCost, totalCost } = calculateMintCost(count);
@@ -101,12 +104,15 @@ export default function SelectionFooter({ count, onMint, isMinting = false }: Se
               disabled={isMinting || count === 0}
               className={`flex items-center gap-3 px-10 py-4 rounded-3xl text-black font-black text-[15px] transition-all ${
                 isMinting 
-                  ? "bg-[#00E58F]/50 cursor-not-allowed" 
+                  ? "bg-[#00E58F]/60 cursor-not-allowed" 
                   : "bg-[#00E58F] hover:scale-[1.02] active:scale-[0.98] shadow-[0_10px_30px_rgba(0,229,143,0.2)]"
               }`}
             >
               {isMinting ? (
-                <span>Minting...</span>
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Minting…</span>
+                </>
               ) : (
                 <>
                   <span>Mint Selected Clips</span>
