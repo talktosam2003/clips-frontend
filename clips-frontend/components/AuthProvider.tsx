@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { User } from "../app/lib/mockApi";
 import { useRouter, usePathname } from "next/navigation";
-import { useUserStore } from "@/app/store";
+import { useUserStore, useDashboardStore, useEarningsStore } from "@/app/store";
 import { useSession, signOut } from "next-auth/react";
 
 interface AuthContextType {
@@ -101,6 +101,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         planUsagePercent: 80,
       };
       setProfile(userProfile);
+      // Kick off background prefetch so data is ready when user lands on dashboard/earnings
+      useDashboardStore.getState().fetchDashboard();
+      useEarningsStore.getState().fetchEarnings();
     } else {
       localStorage.removeItem("clipcash_user");
       clearUser();

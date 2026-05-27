@@ -210,9 +210,23 @@ export default function EarningsPage() {
   if (loading) {
     return (
       <EarningsLayout>
-        <div className="space-y-8 p-12 text-center">
-          <div className="animate-spin inline-block w-8 h-8 border-4 border-brand border-t-transparent rounded-full mb-4"></div>
-          <p className="text-white">Loading your financial data...</p>
+        <div className="space-y-8">
+          {/* Header skeleton */}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="h-9 w-64 rounded-xl bg-white/6 animate-pulse" />
+              <div className="h-4 w-80 rounded-lg bg-white/6 animate-pulse" />
+            </div>
+            <div className="h-11 w-28 rounded-xl bg-white/6 animate-pulse" />
+          </div>
+          {/* Stat cards skeleton */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-28 rounded-2xl bg-white/6 animate-pulse" />
+            ))}
+          </div>
+          {/* Table skeleton */}
+          <div className="rounded-2xl bg-white/6 animate-pulse h-80" />
         </div>
       </EarningsLayout>
     );

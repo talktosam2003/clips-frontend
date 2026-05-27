@@ -100,6 +100,12 @@ export default function WalletConnectButton({ compact = false }: WalletConnectBu
 
   // ─── Compact variant (header / navbar) ───────────────────────────────────
   if (compact) {
+    if (isRestoringSession) {
+      return (
+        <div className="w-[130px] h-9 rounded-xl bg-white/6 animate-pulse" />
+      );
+    }
+
     return (
       <div className="relative flex flex-col items-end gap-2">
         {isConnected && address ? (
