@@ -31,8 +31,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearUser = useUserStore((state) => state.clearUser);
   const { data: session, status } = useSession();
 
- useEffect(() => {
-  if (isLoading) return;
+  // Load initial auth state on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("clipcash_user");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        setUserState(parsed);
+      } catch (e) {
+        console.error("Failed to parse stored user", e);
+      }
+    }
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (isLoading) return;
 
   const protectedRoutes = [
     "/dashboard",

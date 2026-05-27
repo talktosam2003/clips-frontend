@@ -1,11 +1,14 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Wallet, CheckCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { MockApi } from "@/app/lib/mockApi";
+import { signIn } from "next-auth/react";
+import { useToast } from "@/hooks/useToast";
+import analytics from "@/lib/analytics";
 
 // Local inline SVG for Google/Apple to avoid external dependencies perfectly matching
 const GoogleIcon = () => (
@@ -25,6 +28,18 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { showToast, ToastEl } = useToast();
+  
+  // Wallet connection hook
+  const {
+    connect: connectWallet,
+    disconnect: disconnectWallet,
+    isConnecting: isWalletConnecting,
+    isConnected: isWalletConnected,
+    publicKey: walletPublicKey,
+    error: walletError,
+    getTruncatedAddress,
+    resetError: resetWalletError,
+  } = useWalletConnection();
 
   const [currentMode, setCurrentMode] = useState<"login" | "signup">(mode);
   const [email, setEmail] = useState("");
@@ -43,6 +58,24 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
     }
   }, [searchParams, showToast, router]);
 
+  // Handle wallet connection
+  const handleWalletConnect = async () => {
+    resetWalletError();
+    const success = await connectWallet();
+    
+    if (success && walletPublicKey) {
+      showToast("Wallet connected successfully!", "success");
+    } else if (walletError) {
+      showToast(walletError.message, "error");
+    }
+  };
+
+  // Handle wallet disconnection
+  const handleWalletDisconnect = () => {
+    disconnectWallet();
+    showToast("Wallet disconnected", "info");
+  };
+
   const handleAuthSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -53,8 +86,34 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
         const res = await MockApi.login(email, password);
         setUser(res.user);
       } else {
+        // 1. Create the user account
         const res = await MockApi.signup(email, password, fullName);
+
+        // 2. Automatically create an embedded Stellar wallet (Web2 flow)
+        //    This runs in the background — wallet creation failure does NOT
+        //    block the signup. The user can retry from their dashboard.
+        try {
+          const walletResult = await createEmbeddedWallet(res.user.id, "testnet", true);
+          // Attach the wallet address to the user record
+          await MockApi.attachWallet(
+            res.user.id,
+            walletResult.wallet.publicKey,
+            walletResult.wallet.walletType,
+            walletResult.wallet.network
+          );
+          // Merge wallet info into the user object before storing in context
+          res.user.walletAddress = walletResult.wallet.publicKey;
+          res.user.walletType = walletResult.wallet.walletType;
+          res.user.walletNetwork = walletResult.wallet.network;
+          res.user.walletCreatedAt = walletResult.wallet.createdAt;
+        } catch {
+          // Non-fatal: wallet creation failed, user can retry from dashboard
+          console.warn("[ClipCash] Embedded wallet creation failed — user can retry from dashboard.");
+        }
+
         setUser(res.user);
+        // Track signup event
+        analytics.trackSignup('email');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -84,7 +143,10 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
       <div className="space-y-[14px] mb-8">
         <button
           type="button"
-          onClick={() => signIn("google", { callbackUrl: "/" })}
+          onClick={() => {
+            analytics.trackEvent('signup_attempt', { method: 'google' });
+            signIn("google", { callbackUrl: "/" });
+          }}
           className="w-full flex items-center justify-center gap-3 bg-surface-hover hover:bg-border border border-border text-white py-3.5 rounded-[12px] font-medium transition-all text-[14px]"
         >
           <GoogleIcon />
@@ -92,12 +154,63 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
         </button>
         <button
           type="button"
-          onClick={() => signIn("apple", { callbackUrl: "/" })}
+          onClick={() => {
+            analytics.trackEvent('signup_attempt', { method: 'apple' });
+            signIn("apple", { callbackUrl: "/" });
+          }}
           className="w-full flex items-center justify-center gap-3 bg-surface-hover hover:bg-border border border-border text-white py-3.5 rounded-[12px] font-medium transition-all text-[14px]"
         >
           <AppleIcon />
           Continue with Apple
         </button>
+        
+        {/* Wallet Connection Button */}
+        {!isWalletConnected ? (
+          <button
+            type="button"
+            onClick={handleWalletConnect}
+            disabled={isWalletConnecting}
+            className="w-full flex items-center justify-center gap-3 bg-brand/10 hover:bg-brand/20 border border-brand/30 text-brand py-3.5 rounded-[12px] font-medium transition-all text-[14px] disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isWalletConnecting ? (
+              <>
+                <Loader2 className="w-[18px] h-[18px] animate-spin" />
+                Connecting Wallet...
+              </>
+            ) : (
+              <>
+                <Wallet className="w-[18px] h-[18px]" />
+                Connect Stellar Wallet
+              </>
+            )}
+          </button>
+        ) : (
+          <div className="w-full flex items-center justify-between gap-3 bg-brand/10 border border-brand/30 text-brand py-3.5 px-4 rounded-[12px] text-[14px]">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-[18px] h-[18px]" />
+              <span className="font-medium">
+                {walletPublicKey ? getTruncatedAddress(walletPublicKey) : "Connected"}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={handleWalletDisconnect}
+              className="text-brand/70 hover:text-brand text-[12px] font-medium underline"
+            >
+              Disconnect
+            </button>
+          </div>
+        )}
+        
+        {/* Wallet Error Display */}
+        {walletError && (
+          <div className="flex items-start gap-2 p-3 bg-error/10 border border-error/30 rounded-[12px]">
+            <AlertCircle className="w-4 h-4 text-error shrink-0 mt-0.5" />
+            <p className="text-error text-[12px] leading-relaxed">
+              {walletError.message}
+            </p>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-4 text-muted-foreground text-[11px] font-bold tracking-[0.1em] uppercase mb-8">
@@ -145,7 +258,13 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
             className="w-full bg-input border border-border text-white focus:border-brand/70 rounded-[12px] px-4 py-3.5 text-[14px] focus:outline-none focus:bg-surface-hover transition-colors"
           />
           {currentMode === "login" && (
-            <div className="flex justify-end mt-3">
+            <div className="flex justify-between items-center mt-3">
+              <Link
+                href="/recovery"
+                className="text-brand font-medium hover:underline text-[13px]"
+              >
+                Recover wallet?
+              </Link>
               <Link
                 href="/forgot-password"
                 className="text-brand font-medium hover:underline text-[13px]"
@@ -163,8 +282,14 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
           disabled={loading}
           className="w-full bg-brand hover:bg-brand-hover text-black py-[15px] rounded-[12px] font-bold text-[15px] flex justify-center items-center gap-2 transition-all disabled:opacity-70 mt-[6px]"
         >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin text-black" /> : 
-            (currentMode === "login" ? "Continue with Email" : "Create Account")}
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-black" />
+              {currentMode === "signup" ? "Creating account & wallet…" : "Signing in…"}
+            </span>
+          ) : (
+            currentMode === "login" ? "Continue with Email" : "Create Account"
+          )}
         </button>
       </form>
       
