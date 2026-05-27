@@ -5,10 +5,10 @@ import { Loader2, Wallet, CheckCircle, AlertCircle } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { MockApi } from "@/app/lib/mockApi";
-import { useWalletConnection } from "@/app/hooks/useWalletConnection";
+import { signIn } from "next-auth/react";
 import { useToast } from "@/hooks/useToast";
+import analytics from "@/lib/analytics";
 
 // Local inline SVG for Google/Apple to avoid external dependencies perfectly matching
 const GoogleIcon = () => (
@@ -86,8 +86,34 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
         const res = await MockApi.login(email, password);
         setUser(res.user);
       } else {
+        // 1. Create the user account
         const res = await MockApi.signup(email, password, fullName);
+
+        // 2. Automatically create an embedded Stellar wallet (Web2 flow)
+        //    This runs in the background — wallet creation failure does NOT
+        //    block the signup. The user can retry from their dashboard.
+        try {
+          const walletResult = await createEmbeddedWallet(res.user.id, "testnet", true);
+          // Attach the wallet address to the user record
+          await MockApi.attachWallet(
+            res.user.id,
+            walletResult.wallet.publicKey,
+            walletResult.wallet.walletType,
+            walletResult.wallet.network
+          );
+          // Merge wallet info into the user object before storing in context
+          res.user.walletAddress = walletResult.wallet.publicKey;
+          res.user.walletType = walletResult.wallet.walletType;
+          res.user.walletNetwork = walletResult.wallet.network;
+          res.user.walletCreatedAt = walletResult.wallet.createdAt;
+        } catch {
+          // Non-fatal: wallet creation failed, user can retry from dashboard
+          console.warn("[ClipCash] Embedded wallet creation failed — user can retry from dashboard.");
+        }
+
         setUser(res.user);
+        // Track signup event
+        analytics.trackSignup('email');
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
@@ -117,7 +143,10 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
       <div className="space-y-[14px] mb-8">
         <button
           type="button"
-          onClick={() => signIn("google", { callbackUrl: "/" })}
+          onClick={() => {
+            analytics.trackEvent('signup_attempt', { method: 'google' });
+            signIn("google", { callbackUrl: "/" });
+          }}
           className="w-full flex items-center justify-center gap-3 bg-surface-hover hover:bg-border border border-border text-white py-3.5 rounded-[12px] font-medium transition-all text-[14px]"
         >
           <GoogleIcon />
@@ -125,7 +154,10 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
         </button>
         <button
           type="button"
-          onClick={() => signIn("apple", { callbackUrl: "/" })}
+          onClick={() => {
+            analytics.trackEvent('signup_attempt', { method: 'apple' });
+            signIn("apple", { callbackUrl: "/" });
+          }}
           className="w-full flex items-center justify-center gap-3 bg-surface-hover hover:bg-border border border-border text-white py-3.5 rounded-[12px] font-medium transition-all text-[14px]"
         >
           <AppleIcon />
@@ -250,8 +282,14 @@ export default function AuthForm({ mode = "login" }: AuthFormProps) {
           disabled={loading}
           className="w-full bg-brand hover:bg-brand-hover text-black py-[15px] rounded-[12px] font-bold text-[15px] flex justify-center items-center gap-2 transition-all disabled:opacity-70 mt-[6px]"
         >
-          {loading ? <Loader2 className="w-5 h-5 animate-spin text-black" /> : 
-            (currentMode === "login" ? "Continue with Email" : "Create Account")}
+          {loading ? (
+            <span className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin text-black" />
+              {currentMode === "signup" ? "Creating account & wallet…" : "Signing in…"}
+            </span>
+          ) : (
+            currentMode === "login" ? "Continue with Email" : "Create Account"
+          )}
         </button>
       </form>
       

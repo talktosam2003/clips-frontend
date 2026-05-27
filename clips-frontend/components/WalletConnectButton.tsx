@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import { Loader2, Wallet, LogOut, AlertCircle, X, ChevronDown, Coins } from "lucide-react";
 import { useWallet, truncateAddress } from "./WalletProvider";
+import analytics from "@/lib/analytics";
 
 interface WalletConnectButtonProps {
   /** Compact mode renders a smaller pill button (e.g. for headers/navbars) */
@@ -52,6 +53,19 @@ export default function WalletConnectButton({ compact = false }: WalletConnectBu
     }
   };
 
+  const handleConnect = async () => {
+    await connectMetaMask();
+    // Track wallet connection (will be called after successful connection)
+    if (address) {
+      analytics.trackWalletConnect('metamask');
+    }
+  };
+
+  const handleDisconnect = () => {
+    disconnect();
+    analytics.trackEvent('wallet_disconnect', { wallet_type: 'metamask' });
+  };
+
   if (compact) {
     return (
       <div className="relative flex flex-col items-end gap-2">
@@ -71,7 +85,7 @@ export default function WalletConnectButton({ compact = false }: WalletConnectBu
               </div>
             </div>
             <button
-              onClick={disconnect}
+              onClick={handleDisconnect}
               title="Disconnect wallet"
               aria-label="Disconnect wallet"
               className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 text-muted-foreground hover:text-red-400 hover:border-red-400/20 transition-all cursor-pointer active:scale-95"
@@ -80,52 +94,16 @@ export default function WalletConnectButton({ compact = false }: WalletConnectBu
             </button>
           </div>
         ) : (
-          <div className="relative">
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              disabled={isConnecting}
-              aria-label="Connect wallet menu"
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand/10 border border-brand/20 text-brand font-bold text-[13px] hover:bg-brand/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.97] cursor-pointer"
-            >
-              {isConnecting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Wallet className="w-4 h-4" />
-              )}
-              {isConnecting ? "Connecting..." : "Connect Wallet"}
-              <ChevronDown className="w-3.5 h-3.5 ml-0.5" />
-            </button>
-
-            {dropdownOpen && (
-              <div className="absolute right-0 mt-2 w-48 bg-[#0D1310] border border-[#1E2E25] rounded-xl shadow-xl z-50 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200">
-                <button
-                  onClick={() => {
-                    connectMetaMask();
-                    setDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/[0.04] text-white text-[13px] font-semibold transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <span>🦊</span> Connect MetaMask
-                </button>
-                <button
-                  onClick={() => {
-                    connectPhantom();
-                    setDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/[0.04] text-white text-[13px] font-semibold transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <span>👻</span> Connect Phantom
-                </button>
-                <button
-                  onClick={() => {
-                    connectStellar();
-                    setDropdownOpen(false);
-                  }}
-                  className="w-full text-left px-4 py-2.5 hover:bg-white/[0.04] text-brand text-[13px] font-semibold transition-colors flex items-center gap-2 cursor-pointer"
-                >
-                  <span>⚡</span> Connect Stellar (XLM)
-                </button>
-              </div>
+          <button
+            onClick={handleConnect}
+            disabled={isConnecting}
+            aria-label="Connect MetaMask wallet"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand/10 border border-brand/20 text-brand font-bold text-[13px] hover:bg-brand/20 transition-all disabled:opacity-60 disabled:cursor-not-allowed active:scale-[0.97]"
+          >
+            {isConnecting ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Wallet className="w-4 h-4" />
             )}
           </div>
         )}
@@ -158,60 +136,28 @@ export default function WalletConnectButton({ compact = false }: WalletConnectBu
       )}
 
       {isConnected && address ? (
-        <div className="space-y-3 w-full">
-          <div className="w-full p-4 bg-white/[0.02] border border-white/5 rounded-xl flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl">{getWalletIcon(walletType)}</span>
-              <div>
-                <p className="text-[14px] font-bold text-white">{getWalletName(walletType)} Connected</p>
-                <p className="text-[12px] font-mono text-muted-foreground">{address}</p>
-                {walletType === "stellar" && balance !== null && (
-                  <p className="text-[12px] text-brand font-bold mt-1 flex items-center gap-1">
-                    <Coins className="w-3.5 h-3.5" /> {parseFloat(balance).toFixed(4)} XLM
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-          <button
-            onClick={disconnect}
-            aria-label="Disconnect wallet"
-            className="w-full py-3.5 rounded-xl font-bold text-[14px] bg-transparent border border-white/10 text-white hover:bg-red-950/20 hover:border-red-500/20 hover:text-red-400 transition-all flex items-center justify-center gap-2 active:scale-[0.98] cursor-pointer"
-          >
-            <LogOut className="w-4 h-4" />
-            Disconnect {getWalletName(walletType)}
-          </button>
-        </div>
+        <button
+          onClick={handleDisconnect}
+          aria-label="Disconnect wallet"
+          className="w-full py-4 rounded-xl font-bold text-[14px] bg-transparent border border-white/10 text-white hover:bg-red-950/30 hover:border-red-500/30 hover:text-red-400 transition-all flex items-center justify-center gap-2.5 active:scale-[0.98]"
+        >
+          <LogOut className="w-4 h-4" />
+          Disconnect
+        </button>
       ) : (
-        <div className="space-y-3.5 w-full">
-          <button
-            onClick={connectMetaMask}
-            disabled={isConnecting}
-            aria-label="Connect MetaMask wallet"
-            className="w-full py-3.5 rounded-xl font-bold text-[14px] bg-[#1E2622] hover:bg-[#2A3731] border border-white/10 text-white transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <span>🦊</span>
-            {isConnecting ? "Connecting..." : "Connect MetaMask"}
-          </button>
-          <button
-            onClick={connectPhantom}
-            disabled={isConnecting}
-            aria-label="Connect Phantom wallet"
-            className="w-full py-3.5 rounded-xl font-bold text-[14px] bg-[#1E2622] hover:bg-[#2A3731] border border-white/10 text-white transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <span>👻</span>
-            {isConnecting ? "Connecting..." : "Connect Phantom"}
-          </button>
-          <button
-            onClick={connectStellar}
-            disabled={isConnecting}
-            aria-label="Connect Stellar wallet"
-            className="w-full py-3.5 rounded-xl font-bold text-[14px] bg-brand hover:bg-brand-hover text-black shadow-[0_0_20px_rgba(0,229,143,0.15)] hover:shadow-[0_0_35px_rgba(0,229,143,0.3)] transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
-          >
-            <span>⚡</span>
-            {isConnecting ? "Connecting..." : "Connect Stellar (XLM)"}
-          </button>
-        </div>
+        <button
+          onClick={handleConnect}
+          disabled={isConnecting}
+          aria-label="Connect MetaMask wallet"
+          className="w-full py-4 rounded-xl font-bold text-[14px] bg-brand hover:bg-brand-hover text-black shadow-[0_0_20px_rgba(0,229,143,0.2)] hover:shadow-[0_0_35px_rgba(0,229,143,0.35)] transition-all flex items-center justify-center gap-2.5 active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isConnecting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Wallet className="w-4 h-4" />
+          )}
+          {isConnecting ? "Connecting..." : "Connect MetaMask"}
+        </button>
       )}
     </div>
   );

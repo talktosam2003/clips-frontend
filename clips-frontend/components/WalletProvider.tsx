@@ -2,14 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { secureStorage } from "@/app/lib/secureStorage";
-import * as StellarSdk from "@stellar/stellar-sdk";
-import {
-  createRandomWallet,
-  getBalance,
-  fundWithFriendbot,
-  buildPaymentTransaction,
-  submitTransaction,
-} from "@/app/lib/stellar";
+import analytics from "@/lib/analytics";
 
 // EIP-1193 provider type (window.ethereum)
 declare global {
@@ -283,6 +276,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
 
       persistSession({ address, chainId, walletType: "metamask" });
+      
+      // Track successful wallet connection
+      analytics.trackWalletConnect("metamask");
     } catch (err: unknown) {
       const message =
         (err as { code?: number; message?: string })?.code === 4001
@@ -323,6 +319,9 @@ export function WalletProvider({ children }: { children: React.ReactNode }) {
       });
 
       persistSession({ address, chainId: "5EJ9Vc47M3VvM2x6wCk3F2nZ3qG7yB9rD6aX8cE5fG1h", walletType: "phantom" });
+      
+      // Track successful wallet connection
+      analytics.trackWalletConnect("phantom");
     } catch (err: unknown) {
       const message =
         (err as { code?: number; message?: string })?.code === 4001
