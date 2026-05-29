@@ -37,6 +37,8 @@ export interface StellarNetworkConfig {
   friendbotUrl: string | null;
   /** Horizon network identifier used by Freighter ("PUBLIC" | "TESTNET") */
   freighterNetwork: "PUBLIC" | "TESTNET";
+  /** Soroban NFT contract address */
+  nftContractId?: string;
 }
 
 export const NETWORK_CONFIGS: Record<StellarNetwork, StellarNetworkConfig> = {
@@ -49,6 +51,7 @@ export const NETWORK_CONFIGS: Record<StellarNetwork, StellarNetworkConfig> = {
     networkPassphrase: "Test SDF Network ; September 2015",
     friendbotUrl: "https://friendbot.stellar.org",
     freighterNetwork: "TESTNET",
+    nftContractId: process.env.NEXT_PUBLIC_STELLAR_NFT_CONTRACT_ID,
   },
   mainnet: {
     label: "Mainnet",
@@ -58,6 +61,7 @@ export const NETWORK_CONFIGS: Record<StellarNetwork, StellarNetworkConfig> = {
     networkPassphrase: "Public Global Stellar Network ; September 2015",
     friendbotUrl: null, // Friendbot is not available on mainnet
     freighterNetwork: "PUBLIC",
+    nftContractId: process.env.NEXT_PUBLIC_STELLAR_NFT_CONTRACT_ID_MAINNET,
   },
 };
 
@@ -118,6 +122,14 @@ export function getStellarLabUrl(txHash: string, network?: StellarNetwork): stri
   const freighterNetwork = getFreighterNetwork(network).toLowerCase();
   const labNetwork = freighterNetwork === "public" ? "public" : "test";
   return `https://laboratory.stellar.org/#explorer?resource=transactions&endpoint=single&values=${txHash}&network=${labNetwork}`;
+}
+
+/**
+ * Returns the NFT contract address for the active network.
+ * @param network Optional network override
+ */
+export function getNftContractId(network?: StellarNetwork): string | undefined {
+  return NETWORK_CONFIGS[network ?? STELLAR_NETWORK].nftContractId;
 }
 
 function getStellarExpertBaseUrl(network?: StellarNetwork) {

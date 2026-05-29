@@ -4,6 +4,7 @@ import {
   getHorizonUrl,
   getNetworkPassphrase,
   getFriendbotUrl,
+  getRpcUrl,
 } from "./networkConfig";
 import type { StellarOperation } from "./stellarOperations";
 import { validateOperations } from "./stellarOperations";
@@ -17,6 +18,10 @@ export const NETWORK_PASSPHRASE = getNetworkPassphrase();
 
 export const getStellarServer = () => {
   return new StellarSdk.Horizon.Server(HORIZON_URL);
+};
+
+export const getSorobanServer = () => {
+  return new StellarSdk.SorobanRpc.Server(getRpcUrl());
 };
 
 // Simplified BIP39 word list for generating a 12-word mnemonic phrase
@@ -264,14 +269,15 @@ function toSdkOperation(op: StellarOperation): StellarSdk.xdr.Operation {
       return StellarSdk.Operation.setOptions(opts);
     }
 
-    case "invoke_contract":
-      // Soroban contract invocations require the Soroban RPC path and a
-      // SorobanDataBuilder — this stub builds a placeholder operation.
-      // Replace with a full Soroban client call in production.
-      throw new Error(
-        "invoke_contract operations must be built via the Soroban RPC client. " +
-          "Use SorobanRpc.Server and assembleTransaction() before calling submitTransaction()."
-      );
+    case "invoke_contract": {
+      const invokeHostFunctionOpts: StellarSdk.Operation.InvokeHostFunctionOptions = {
+        contract: op.contractId,
+        functionName: op.method,
+        args: (op.args as StellarSdk.xdr.ScVal[]) || [],
+        ...(op.source ? { source: op.source } : {}),
+      };
+      return StellarSdk.Operation.invokeHostFunction(invokeHostFunctionOpts);
+    }
 
     default: {
       const _exhaustive: never = op;
@@ -365,3 +371,138 @@ export const buildBatchTransaction = async (
     operationCount: operations.length,
   };
 };
+
+// ─── Soroban transaction builder and submitter ────────────────────────────────
+
+/**
+ * Build, simulate, and assemble a Soroban transaction for contract invocation.
+ * This handles fetching Soroban transaction data and preparing it for signing.
+ */
+export async function buildSorobanTransaction(
+  senderPublicKey: string,
+  operations: StellarOperation[],
+  options: {
+    memo?: string;
+    timeoutSeconds?: number;
+  } = {}
+): Promise<{
+  xdr: string;
+  feeStroops: number;
+  operationCount: number;
+}> {
+  const { memo, timeoutSeconds = 30 } = options;
+
+  // Validate operations first
+  validateOperations(operations);
+
+  const sorobanServer = getSorobanServer();
+  const horizonServer = getStellarServer();
+
+  // Load source account
+  let sourceAccount: StellarSdk.AccountResponse;
+  try {
+    sourceAccount = await horizonServer.loadAccount(senderPublicKey);
+  } catch (error: unknown) {
+    const err = error as { response?: { status?: number } };
+    if (err.response?.status === 404) {
+      throw new Error("Sender account is not funded. Please fund it first.");
+    }
+    throw error;
+  }
+
+  // Fetch base fee
+  let baseFee = 100;
+  try {
+    baseFee = await horizonServer.fetchBaseFee();
+  } catch {
+    console.warn("Failed to fetch base fee, using default 100 stroops");
+  }
+  const totalFee = baseFee * operations.length;
+
+  // Build transaction builder
+  const builder = new StellarSdk.TransactionBuilder(sourceAccount, {
+    fee: totalFee.toString(),
+    networkPassphrase: NETWORK_PASSPHRASE,
+  });
+
+  // Add operations
+  for (const op of operations) {
+    builder.addOperation(toSdkOperation(op));
+  }
+
+  if (memo) {
+    builder.addMemo(StellarSdk.Memo.text(memo));
+  }
+
+  const unsignedTx = builder.setTimeout(timeoutSeconds).build();
+
+  // Simulate the transaction to get Soroban transaction data
+  const simulated = await sorobanServer.simulateTransaction(unsignedTx);
+
+  if (StellarSdk.SorobanRpc.Api.isSimulationError(simulated)) {
+    throw new Error(`Simulation failed: ${JSON.stringify(simulated.error)}`);
+  }
+
+  // Assemble the transaction for signing
+  const assembledTx = StellarSdk.assembleTransaction(
+    unsignedTx,
+    simulated
+  ).build();
+
+  return {
+    xdr: assembledTx.toEnvelope().toXDR("base64"),
+    feeStroops: totalFee,
+    operationCount: operations.length,
+  };
+}
+
+/**
+ * Submit a signed Soroban transaction to the network.
+ */
+export async function submitSorobanTransaction(
+  signedTx: StellarSdk.Transaction
+): Promise<{ success: boolean; hash: string; ledger: number }> {
+  const sorobanServer = getSorobanServer();
+  try {
+    const result = await sorobanServer.sendTransaction(signedTx);
+    if (result.status === "ERROR") {
+      throw new Error(
+        `Soroban submission failed: ${JSON.stringify(result.errorResult)}`
+      );
+    }
+    // Wait for transaction to be confirmed (optional but recommended)
+    if (result.status === "PENDING") {
+      let getTxResult;
+      const maxRetries = 10;
+      let retries = 0;
+      do {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        getTxResult = await sorobanServer.getTransaction(result.hash);
+        retries++;
+      } while (
+        getTxResult.status === "NOT_FOUND" &&
+        retries < maxRetries
+      );
+
+      if (getTxResult.status === "SUCCESS") {
+        return {
+          success: true,
+          hash: getTxResult.hash,
+          ledger: getTxResult.ledger,
+        };
+      } else if (getTxResult.status === "FAILED") {
+        throw new Error(
+          `Soroban transaction failed: ${JSON.stringify(getTxResult.resultMetaXdr)}`
+        );
+      }
+    }
+    return {
+      success: true,
+      hash: result.hash,
+      ledger: 0, // Ledger not available in pending status
+    };
+  } catch (error: any) {
+    console.error("Soroban submission error details:", error);
+    throw new Error(`Soroban Submission Failed: ${error.message}`);
+  }
+}
