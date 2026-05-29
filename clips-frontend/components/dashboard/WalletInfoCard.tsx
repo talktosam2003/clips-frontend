@@ -1,13 +1,11 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
-import { Wallet, ExternalLink, Copy, Check, AlertCircle, Send, Loader2, CheckCircle } from "lucide-react";
+import Link from "next/link";
+import { Wallet, ExternalLink, Copy, Check, AlertCircle, Send, Loader2, CheckCircle, Activity } from "lucide-react";
 import { useWalletConnection } from "@/app/hooks/useWalletConnection";
 import { useAutoStellarWallet } from "@/app/hooks/useAutoStellarWallet";
-import { useWallet } from "@/components/WalletProvider";
-import BalanceDisplay from "@/components/wallet/BalanceDisplay";
-import TransactionHistory from "@/components/wallet/TransactionHistory";
-import TrustlineManager from "@/components/wallet/TrustlineManager";
+import ActivityFeed from "@/components/wallet/ActivityFeed";
 
 /**
  * #337 – Web2-style wallet card.
@@ -274,19 +272,19 @@ export default function WalletInfoCard() {
         </div>
       </div>
 
-      {/* Trustline Manager */}
-      {status === "ready" && publicKey && (
-        <TrustlineManager
-          publicKey={publicKey}
-          secretKey={stellarSecret}
-          existingTrustlines={balance?.otherAssets ?? []}
-          onTrustlineChanged={refreshBalance}
-        />
-      )}
-
-      {/* Transaction History */}
+      {/* Activity Feed */}
       <div className="mt-4 pt-4 border-t border-border">
-        <TransactionHistory publicKey={publicKey!} network={networkUpper || "TESTNET"} limit={8} />
+        <div className="flex items-center justify-between mb-3">
+          <h4 className="text-[13px] font-bold text-white uppercase tracking-wider">Recent Activity</h4>
+          <Link
+            href="/activity"
+            className="flex items-center gap-1 text-[11px] font-bold text-brand hover:underline"
+          >
+            View All
+            <Activity className="w-3 h-3" />
+          </Link>
+        </div>
+        <ActivityFeed publicKey={publicKey!} network={networkUpper || "TESTNET"} pageSize={5} />
       </div>
     </div>
   );

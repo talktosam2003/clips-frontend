@@ -6,9 +6,9 @@ import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import { useWallet } from "@/components/WalletProvider";
 import SocialRecoveryConfig from "@/components/SocialRecoveryConfig";
 import WalletConnectButton from "@/components/WalletConnectButton";
-import TrustlineManager from "@/components/wallet/TrustlineManager";
-import { Bell, BellOff, Check, X, Key, Wallet, Shield, Copy, Eye, EyeOff } from "lucide-react";
+import { Bell, BellOff, Check, X, Key, Wallet, Shield, Copy, Eye, EyeOff, Globe } from "lucide-react";
 import { useToast } from "@/hooks/useToast";
+import LocaleSwitcher from "@/components/LocaleSwitcher";
 import {
   getStoredPermission,
   requestNotificationPermission,
@@ -179,6 +179,27 @@ export default function SettingsPage() {
                   </button>
                 )}
               </div>
+            </div>
+          </div>
+
+          {/* Language / Locale Settings */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-extrabold text-white">Language</h2>
+
+            <div className="bg-surface border border-white/5 rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-full bg-brand/10 border border-brand/20 flex items-center justify-center text-brand shrink-0">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-white">Interface Language</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Choose your preferred language for the wallet interface
+                  </p>
+                </div>
+              </div>
+
+              <LocaleSwitcher />
             </div>
           </div>
 
