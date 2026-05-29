@@ -47,7 +47,7 @@ export default function WalletStatusCard() {
     : `https://stellar.expert/explorer/public/account/${publicKey}`;
 
   return (
-    <div className="bg-[#0C1411] border border-[#1A2620] rounded-[20px] p-6 flex flex-col gap-4">
+    <div className="bg-surface border border-border rounded-[24px] p-6 flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -56,7 +56,7 @@ export default function WalletStatusCard() {
           </div>
           <div>
             <div className="text-white font-bold text-[14px] leading-tight">Stellar Wallet</div>
-            <div className="text-[#5A6F65] text-[11px] mt-0.5">
+            <div className="text-muted-foreground text-[11px] mt-0.5">
               {walletType === "embedded" ? "Auto-created · Embedded" :
                walletType === "freighter" ? "Freighter Extension" :
                walletType === "smart_contract" ? "Smart Contract Wallet" :
@@ -96,9 +96,9 @@ export default function WalletStatusCard() {
 
       {/* Wallet address or CTA */}
       {publicKey ? (
-        <div className="bg-[#0A0F0D] border border-[#151D19] rounded-[12px] px-4 py-3 flex items-center justify-between gap-3">
+        <div className="bg-surface-hover border border-border rounded-[12px] px-4 py-3 flex items-center justify-between gap-3">
           <div>
-            <div className="text-[10px] text-[#4A5D54] font-bold uppercase tracking-wider mb-1">Public Key</div>
+            <div className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mb-1">Public Key</div>
             <div className="font-mono text-[13px] text-white font-medium">
               {truncateStellarAddress(publicKey)}
             </div>
@@ -108,7 +108,7 @@ export default function WalletStatusCard() {
               onClick={handleCopy}
               title="Copy full address"
               aria-label={copied ? "Address copied to clipboard" : "Copy full address to clipboard"}
-              className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
+              className="p-2 rounded-lg bg-surface border border-border text-muted-foreground hover:text-brand hover:border-brand/30 transition-all"
             >
               {copied ? <CheckCheck className="w-3.5 h-3.5 text-brand" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
             </button>
@@ -118,7 +118,7 @@ export default function WalletStatusCard() {
               rel="noopener noreferrer"
               title="View on Stellar Explorer"
               aria-label="View wallet on Stellar Explorer (opens in new tab)"
-              className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
+              className="p-2 rounded-lg bg-surface border border-border text-muted-foreground hover:text-brand hover:border-brand/30 transition-all"
             >
               <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
             </a>
@@ -126,7 +126,7 @@ export default function WalletStatusCard() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="text-[13px] text-[#5A6F65] leading-relaxed">
+          <p className="text-[13px] text-muted-foreground leading-relaxed">
             Your wallet was not created during signup. Click below to create your embedded Stellar wallet — no extension required.
           </p>
           <button
@@ -148,7 +148,7 @@ export default function WalletStatusCard() {
       {/* Info footer */}
       {publicKey && (
         <div 
-          className="flex items-center gap-2 text-[11px] text-[#3A4A43]"
+          className="flex items-center gap-2 text-[11px] text-muted-foreground"
           role="status"
           aria-live="polite"
         >

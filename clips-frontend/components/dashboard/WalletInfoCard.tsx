@@ -148,7 +148,7 @@ export default function WalletInfoCard() {
         <button
           onClick={() => setSendOpen(true)}
           aria-label="Open send XLM form"
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand/10 hover:bg-brand/20 border border-brand/30 text-brand font-bold text-[13px] transition-all"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand hover:bg-brand-hover border border-brand/30 text-black font-bold text-[13px] transition-all"
         >
           <Send className="w-4 h-4" aria-hidden="true" />
           Send XLM

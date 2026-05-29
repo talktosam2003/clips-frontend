@@ -282,7 +282,7 @@ export default function WalletConnectButton({ compact = false }: WalletConnectBu
         <p 
           role="status"
           aria-live="polite"
-          className="text-center text-[12px] text-[#5A6F65] animate-in fade-in duration-300"
+          className="text-center text-[12px] text-muted-foreground animate-in fade-in duration-300"
         >
           Check the MetaMask popup to approve the connection.
         </p>
