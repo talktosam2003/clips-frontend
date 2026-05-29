@@ -323,6 +323,12 @@ export default function SettingsPage() {
 
                       {/* Social Recovery Section inside advanced settings */}
                       <SocialRecoveryConfig />
+
+                      {/* Trustline Manager */}
+                      <TrustlineManager
+                        publicKey={address!}
+                        secretKey={stellarSecret}
+                      />
                     </div>
                   ) : (
                     // If Stellar wallet is NOT connected

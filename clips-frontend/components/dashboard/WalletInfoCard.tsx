@@ -14,6 +14,7 @@ import ActivityFeed from "@/components/wallet/ActivityFeed";
  */
 export default function WalletInfoCard() {
   const { publicKey, status, balance, error, network } = useAutoStellarWallet();
+  const { stellarSecret, refreshBalance } = useWallet();
   const formRef = useRef<HTMLFormElement>(null);
   const recipientInputRef = useRef<HTMLInputElement>(null);
   const amountInputRef = useRef<HTMLInputElement>(null);
