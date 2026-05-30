@@ -68,7 +68,7 @@ export default function WalletStatusCard() {
     : `https://stellar.expert/explorer/public/account/${publicKey}`;
 
   return (
-    <div className="bg-[#0C1411] border border-[#1A2620] rounded-[20px] p-6 flex flex-col gap-4">
+    <div className="bg-surface border border-border rounded-[24px] p-6 flex flex-col gap-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -77,7 +77,7 @@ export default function WalletStatusCard() {
           </div>
           <div>
             <div className="text-white font-bold text-[14px] leading-tight">Stellar Wallet</div>
-            <div className="text-[#5A6F65] text-[11px] mt-0.5">
+            <div className="text-muted-foreground text-[11px] mt-0.5">
               {walletType === "embedded" ? "Auto-created · Embedded" :
                walletType === "freighter" ? "Freighter Extension" :
                walletType === "smart_contract" ? "Smart Contract Wallet" :
@@ -171,7 +171,7 @@ export default function WalletStatusCard() {
         </>
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="text-[13px] text-[#5A6F65] leading-relaxed">
+          <p className="text-[13px] text-muted-foreground leading-relaxed">
             Your wallet was not created during signup. Click below to create your embedded Stellar wallet — no extension required.
           </p>
           <button
@@ -193,7 +193,7 @@ export default function WalletStatusCard() {
       {/* Info footer */}
       {publicKey && (
         <div 
-          className="flex items-center gap-2 text-[11px] text-[#3A4A43]"
+          className="flex items-center gap-2 text-[11px] text-muted-foreground"
           role="status"
           aria-live="polite"
         >
