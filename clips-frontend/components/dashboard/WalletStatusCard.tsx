@@ -12,20 +12,18 @@
  */
 
 import React, { useState } from "react";
-import { Wallet, Copy, CheckCheck, RefreshCw, ExternalLink, AlertCircle, Loader2, QrCode, Download } from "lucide-react";
-import QRCode from "qrcode";
+import { Wallet, Copy, CheckCheck, RefreshCw, ExternalLink, AlertCircle, Loader2, QrCode, ChevronDown } from "lucide-react";
 import { useEmbeddedWallet } from "@/components/EmbeddedWalletProvider";
 import { truncateStellarAddress } from "@/app/lib/embeddedWallet";
 import { useAuth } from "@/components/AuthProvider";
 import { useToast } from "@/hooks/useToast";
+import QRCodeDisplay from "@/components/wallet/QRCodeDisplay";
 
 export default function WalletStatusCard() {
   const { user } = useAuth();
   const { wallet, isCreating, error, initWallet, clearError } = useEmbeddedWallet();
   const [copied, setCopied] = useState(false);
-  const [showQR, setShowQR] = useState(false);
-  const [qrSrc, setQrSrc] = useState<string | null>(null);
-  const [qrLoading, setQrLoading] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
   const { showToast } = useToast();
 
   // Prefer live wallet state; fall back to user record (persisted across refreshes)
@@ -119,77 +117,58 @@ export default function WalletStatusCard() {
 
       {/* Wallet address or CTA */}
       {publicKey ? (
-        <div className="bg-[#0A0F0D] border border-[#151D19] rounded-[12px] px-4 py-3 flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[10px] text-[#4A5D54] font-bold uppercase tracking-wider mb-1">Public Key</div>
-            <div className="font-mono text-[13px] text-white font-medium">
-              {truncateStellarAddress(publicKey)}
+        <>
+          <div className="bg-[#0A0F0D] border border-[#151D19] rounded-[12px] px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[10px] text-[#4A5D54] font-bold uppercase tracking-wider mb-1">Public Key</div>
+              <div className="font-mono text-[13px] text-white font-medium">
+                {truncateStellarAddress(publicKey)}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={handleCopy}
+                title="Copy full address"
+                aria-label={copied ? "Address copied to clipboard" : "Copy full address to clipboard"}
+                className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
+              >
+                {copied ? <CheckCheck className="w-3.5 h-3.5 text-brand" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
+              </button>
+              <button
+                onClick={() => setShowQRCode(!showQRCode)}
+                title={showQRCode ? "Hide QR code" : "Show QR code for receiving"}
+                aria-label={showQRCode ? "Hide QR code" : "Show QR code"}
+                aria-expanded={showQRCode}
+                className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
+              >
+                <QrCode className="w-3.5 h-3.5" aria-hidden="true" />
+              </button>
+              <a
+                href={horizonUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View on Stellar Explorer"
+                aria-label="View wallet on Stellar Explorer (opens in new tab)"
+                className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
+              >
+                <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+              </a>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <button
-              onClick={handleCopy}
-              title="Copy full address"
-              aria-label={copied ? "Address copied to clipboard" : "Copy full address to clipboard"}
-              className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
-            >
-              {copied ? <CheckCheck className="w-3.5 h-3.5 text-brand" aria-hidden="true" /> : <Copy className="w-3.5 h-3.5" aria-hidden="true" />}
-            </button>
-            <a
-              href={horizonUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="View on Stellar Explorer"
-              aria-label="View wallet on Stellar Explorer (opens in new tab)"
-              className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
-            >
-              <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
-            </a>
-            <button
-              onClick={handleToggleQr}
-              title="Show QR code"
-              aria-expanded={showQR}
-              className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
-            >
-              {qrLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" /> : <QrCode className="w-3.5 h-3.5" aria-hidden="true" />}
-            </button>
-          </div>
-        </div>
-        {showQR && (
-          <div className="mt-3 bg-[#08100E] border border-[#122017] rounded-[12px] p-3 flex flex-col items-center gap-3">
-            {qrSrc ? (
-              <>
-                <img src={qrSrc} alt="Wallet QR code" className="w-40 h-40" />
-                <div className="flex items-center gap-2">
-                  <a
-                    href={qrSrc}
-                    download={`wallet-${truncateStellarAddress(publicKey)}.png`}
-                    className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
-                    title="Download QR code"
-                  >
-                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                  </a>
-                  <button
-                    onClick={async () => { await navigator.clipboard.writeText(publicKey); showToast("Wallet address copied to clipboard", "success"); }}
-                    className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
-                    title="Copy address"
-                  >
-                    <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                  </button>
-                  <button
-                    onClick={() => setShowQR(false)}
-                    className="p-2 rounded-[8px] bg-[#131A17] border border-[#1E2A24] text-[#5A6F65] hover:text-brand hover:border-brand/30 transition-all"
-                    title="Close QR"
-                  >
-                    Close
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="text-[12px] text-[#8FA08E]">Generating QR…</div>
-            )}
-          </div>
-        )}
+
+          {/* QR Code Section */}
+          {showQRCode && (
+            <div className="bg-[#0A0F0D] border border-[#151D19] rounded-[12px] p-4 flex flex-col items-center gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="text-[12px] text-[#5A6F65] font-medium">Receive Payment</div>
+              <QRCodeDisplay
+                address={publicKey}
+                label="stellar-wallet"
+                className="w-full"
+                compact={false}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <div className="flex flex-col gap-3">
           <p className="text-[13px] text-[#5A6F65] leading-relaxed">
