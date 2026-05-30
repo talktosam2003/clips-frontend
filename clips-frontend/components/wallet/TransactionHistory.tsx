@@ -10,8 +10,7 @@ import {
   getStellarScanTransactionUrl,
 } from "@/app/lib/networkConfig";
 import { useToast } from "@/hooks/useToast";
-import { useWallet } from "@/components/WalletProvider";
-import StatusBadge from "@/components/ui/StatusBadge";
+import { formatTransactionAmount } from "@/app/lib/formatAmount";
 
 export interface Transaction {
   id: string;
@@ -257,7 +256,7 @@ export default function TransactionHistory({
                 }`}
               >
                 {tx.type === "received" ? "+" : "-"}
-                {parseFloat(tx.amount).toFixed(2)} {tx.asset}
+                {formatTransactionAmount(tx.amount, tx.asset, 2)}
               </span>
             </div>
             <div className="flex items-center justify-between gap-2 mt-0.5">
