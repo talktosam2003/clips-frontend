@@ -33,7 +33,7 @@ export default function WalletInfoCard() {
   const successId = React.useId();
 
   const xlmDisplay = balance
-    ? `${parseFloat(balance.xlm).toLocaleString(undefined, { maximumFractionDigits: 2 })} XLM`
+    ? formatXLM(balance.xlm, { decimals: 2, includeCurrency: true })
     : status === "loading"
     ? "Loading…"
     : "— XLM";
@@ -141,7 +141,7 @@ export default function WalletInfoCard() {
 
       {/* USD sub-value */}
       {balance && (
-        <p className="text-muted text-[13px] mb-5">≈ ${parseFloat(balance.usd).toLocaleString(undefined, { maximumFractionDigits: 2 })} USD</p>
+        <p className="text-muted text-[13px] mb-5">≈ {formatUSD(balance.usd, { currencyFormat: 'symbol' })}</p>
       )}
 
       {/* Send button */}
