@@ -1,4 +1,5 @@
 import * as StellarSdk from "@stellar/stellar-sdk";
+import * as bip39 from "bip39";
 import {
   STELLAR_NETWORK,
   getHorizonUrl,
@@ -19,34 +20,22 @@ export const getStellarServer = () => {
   return new StellarSdk.Horizon.Server(HORIZON_URL);
 };
 
-// Simplified BIP39 word list for generating a 12-word mnemonic phrase
-const WORD_LIST = [
-  "abandon", "ability", "able", "about", "above", "absent", "absorb", "abstract", "absurd", "abuse",
-  "access", "accident", "account", "accuse", "achieve", "acid", "acoustic", "acquire", "across", "act",
-  "action", "actor", "actress", "actual", "adapt", "add", "addict", "address", "adjust", "admit",
-  "adult", "advance", "advice", "advise", "aerobic", "affair", "afford", "afraid", "again", "age",
-  "agent", "agree", "ahead", "aim", "air", "airport", "aisle", "alarm", "album", "alcohol",
-  "alert", "alien", "all", "alley", "allow", "almost", "alone", "alpha", "already", "also",
-  "alter", "always", "amateur", "amazing", "among", "amount", "amused", "analyst", "anchor", "ancient"
-];
+export const BIP39_WORDLIST = bip39.wordlists.english;
 
-// Hash a string deterministically to a 32-byte seed
-export const deriveSeedFromMnemonic = async (mnemonic: string): Promise<Uint8Array> => {
+export const deriveSeedFromMnemonic = async (
+  mnemonic: string,
+  passphrase = ""
+): Promise<Uint8Array> => {
   const normalized = mnemonic.trim().toLowerCase().replace(/\s+/g, " ");
-  // Using Web Crypto API for SHA-256
-  const encoder = new TextEncoder();
-  const data = encoder.encode(normalized);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  return new Uint8Array(hashBuffer);
+  if (!bip39.validateMnemonic(normalized, BIP39_WORDLIST)) {
+    throw new Error("Invalid BIP39 mnemonic phrase");
+  }
+  const seed = await bip39.mnemonicToSeed(normalized, passphrase);
+  return seed.subarray(0, 32);
 };
 
-export const generateMnemonic = (): string => {
-  const words: string[] = [];
-  for (let i = 0; i < 12; i++) {
-    const randomIndex = Math.floor(Math.random() * WORD_LIST.length);
-    words.push(WORD_LIST[randomIndex]);
-  }
-  return words.join(" ");
+export const generateMnemonic = (strength = 128): string => {
+  return bip39.generateMnemonic(strength, undefined, BIP39_WORDLIST);
 };
 
 export interface StellarWalletData {

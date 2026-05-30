@@ -13,6 +13,8 @@ export interface Balance {
   lastUpdated: Date;
   /** All non-native Stellar asset balances */
   otherAssets: AssetBalance[];
+  /** True when USD value uses a cached price after a rate-limit or fetch failure */
+  isPriceStale?: boolean;
 }
 
 /** A non-native Stellar asset balance */
@@ -43,6 +45,8 @@ export interface UseBalanceOptions {
   refreshInterval?: number;
   /** Enable auto-refresh (default: true) */
   autoRefresh?: boolean;
+  /** XLM/USD price cache TTL in milliseconds (default: 300000 = 5 minutes) */
+  priceCacheTtlMs?: number;
   /** Callback when balance is successfully fetched */
   onSuccess?: (balance: Balance) => void;
   /** Callback when balance fetch fails */
@@ -57,6 +61,8 @@ export interface UseBalanceState {
   isLoading: boolean;
   error: BalanceError | null;
   lastFetchTime: Date | null;
+  /** True when the displayed USD value uses a stale cached XLM price */
+  isPriceStale: boolean;
 }
 
 /**
@@ -118,9 +124,8 @@ export async function getBalance(
         balanceRaw: parseFloat(b.balance),
       }));
 
-    // Fetch current XLM price in USD
-    const xlmPriceUSD = await fetchXLMPrice();
-    const usdValue = xlmAmount * xlmPriceUSD;
+    const xlmPriceResult = await fetchXLMPrice();
+    const usdValue = xlmAmount * xlmPriceResult.price;
 
     return {
       xlm: xlmAmount.toFixed(7), // Stellar uses 7 decimal places
@@ -129,6 +134,7 @@ export async function getBalance(
       usdRaw: usdValue,
       lastUpdated: new Date(),
       otherAssets,
+      isPriceStale: xlmPriceResult.isStale,
     };
   } catch (err: any) {
     // If error already has code and message, throw it as is
@@ -144,30 +150,59 @@ export async function getBalance(
   }
 }
 
-// Module-level price cache — shared across all hook instances to avoid redundant fetches
-let _xlmPriceCache: { price: number; expiresAt: number } | null = null;
-let _xlmPriceFetch: Promise<number> | null = null;
+const DEFAULT_PRICE_CACHE_TTL_MS = 5 * 60 * 1000;
+const FALLBACK_XLM_PRICE_USD = 0.12;
 
-/**
- * Fetch current XLM price in USD with a 60-second module-level cache.
- */
-async function fetchXLMPrice(): Promise<number> {
+interface XlmPriceCacheEntry {
+  price: number;
+  expiresAt: number;
+}
+
+interface XlmPriceResult {
+  price: number;
+  isStale: boolean;
+}
+
+let _xlmPriceCache: XlmPriceCacheEntry | null = null;
+let _xlmPriceFetch: Promise<XlmPriceResult> | null = null;
+let _priceCacheTtlMs = DEFAULT_PRICE_CACHE_TTL_MS;
+
+export function configureXlmPriceCacheTtl(ttlMs: number): void {
+  _priceCacheTtlMs = ttlMs;
+}
+
+export function resetXlmPriceCache(): void {
+  _xlmPriceCache = null;
+  _xlmPriceFetch = null;
+  _priceCacheTtlMs = DEFAULT_PRICE_CACHE_TTL_MS;
+}
+
+export async function fetchXLMPrice(): Promise<XlmPriceResult> {
   const now = Date.now();
-  if (_xlmPriceCache && now < _xlmPriceCache.expiresAt) return _xlmPriceCache.price;
-  // Deduplicate concurrent fetches
+  if (_xlmPriceCache && now < _xlmPriceCache.expiresAt) {
+    return { price: _xlmPriceCache.price, isStale: false };
+  }
   if (_xlmPriceFetch) return _xlmPriceFetch;
 
-  _xlmPriceFetch = (async () => {
+  _xlmPriceFetch = (async (): Promise<XlmPriceResult> => {
     try {
       const response = await fetch(
         "https://api.coingecko.com/api/v3/simple/price?ids=stellar&vs_currencies=usd"
       );
+
+      if (response.status === 429) {
+        if (_xlmPriceCache) {
+          return { price: _xlmPriceCache.price, isStale: true };
+        }
+        return { price: FALLBACK_XLM_PRICE_USD, isStale: true };
+      }
+
       if (response.ok) {
         const data = await response.json();
         const price = data.stellar?.usd;
         if (price && typeof price === "number") {
-          _xlmPriceCache = { price, expiresAt: Date.now() + 60_000 };
-          return price;
+          _xlmPriceCache = { price, expiresAt: Date.now() + _priceCacheTtlMs };
+          return { price, isStale: false };
         }
       }
     } catch (err) {
@@ -175,7 +210,11 @@ async function fetchXLMPrice(): Promise<number> {
     } finally {
       _xlmPriceFetch = null;
     }
-    return _xlmPriceCache?.price ?? 0.12;
+
+    if (_xlmPriceCache) {
+      return { price: _xlmPriceCache.price, isStale: true };
+    }
+    return { price: FALLBACK_XLM_PRICE_USD, isStale: true };
   })();
 
   return _xlmPriceFetch;
@@ -211,6 +250,7 @@ export function useBalance(options: UseBalanceOptions) {
     network = "TESTNET",
     refreshInterval = 30000, // 30 seconds default
     autoRefresh = true,
+    priceCacheTtlMs = DEFAULT_PRICE_CACHE_TTL_MS,
     onSuccess,
     onError,
   } = options;
@@ -219,6 +259,11 @@ export function useBalance(options: UseBalanceOptions) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<BalanceError | null>(null);
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null);
+  const [isPriceStale, setIsPriceStale] = useState(false);
+
+  useEffect(() => {
+    configureXlmPriceCacheTtl(priceCacheTtlMs);
+  }, [priceCacheTtlMs]);
 
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isMountedRef = useRef(true);
@@ -237,6 +282,7 @@ export function useBalance(options: UseBalanceOptions) {
       setIsLoading(false);
       setError(null);
       setLastFetchTime(null);
+      setIsPriceStale(false);
       return;
     }
 
@@ -251,6 +297,7 @@ export function useBalance(options: UseBalanceOptions) {
         setIsLoading(false);
         setError(null);
         setLastFetchTime(new Date());
+        setIsPriceStale(result.isPriceStale ?? false);
 
         onSuccessRef.current?.(result);
       }
@@ -309,6 +356,7 @@ export function useBalance(options: UseBalanceOptions) {
       setIsLoading(false);
       setError(null);
       setLastFetchTime(null);
+      setIsPriceStale(false);
     }
 
     // Cleanup
@@ -330,17 +378,15 @@ export function useBalance(options: UseBalanceOptions) {
   }, []);
 
   return useMemo(() => ({
-    // State
     balance,
     isLoading,
     error,
     lastFetchTime,
+    isPriceStale,
 
-    // Actions
     refresh,
     clearError,
 
-    // Utilities
     isAutoRefreshing: autoRefresh && !!publicKey && refreshInterval > 0,
-  }), [balance, isLoading, error, lastFetchTime, refresh, clearError, autoRefresh, publicKey, refreshInterval]);
+  }), [balance, isLoading, error, lastFetchTime, isPriceStale, refresh, clearError, autoRefresh, publicKey, refreshInterval]);
 }
