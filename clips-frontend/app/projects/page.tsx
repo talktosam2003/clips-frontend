@@ -42,11 +42,15 @@ export default function ProjectsPage() {
     style: "All Styles",
     virality: ["high", "medium", "low"],
     vault: "pending",
+    page: 1,
   });
 
   const captionsStyle = filters.style;
   const viralityLevels = filters.virality;
   const vaultFilter = filters.vault;
+  const currentPage = filters.page;
+  const PAGE_SIZE = 20;
+  const [loadingNextPage, setLoadingNextPage] = useState(false);
 
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [aiRecommendations, setAiRecommendations] = useState(false);
@@ -64,6 +68,11 @@ export default function ProjectsPage() {
     return () => clear();
   }, [clear]);
 
+  // Reset page to 1 whenever filter changes
+  useEffect(() => {
+    updateFilters({ page: 1 });
+  }, [captionsStyle, viralityLevels, vaultFilter, updateFilters]);
+
   const filteredClips = useMemo(() => {
     if (loading) return [];
     return mockClips.filter(clip => {
@@ -73,6 +82,20 @@ export default function ProjectsPage() {
       return matchesStyle && matchesLevel && matchesVault;
     });
   }, [captionsStyle, viralityLevels, vaultFilter, loading]);
+
+  const paginatedClips = useMemo(() => {
+    const startIndex = (currentPage - 1) * PAGE_SIZE;
+    const endIndex = startIndex + PAGE_SIZE;
+    return filteredClips.slice(0, endIndex);
+  }, [filteredClips, currentPage, PAGE_SIZE]);
+
+  const handleLoadMore = useCallback(async () => {
+    setLoadingNextPage(true);
+    // Simulate loading delay for skeletons
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    updateFilters({ page: currentPage + 1 });
+    setLoadingNextPage(false);
+  }, [currentPage, updateFilters]);
 
   const activeFilterCount = useMemo(() => {
     return (captionsStyle !== "All Styles" ? 1 : 0) + 
@@ -224,7 +247,7 @@ export default function ProjectsPage() {
         <div className="flex-1 flex flex-col overflow-hidden w-full max-w-[1400px] mx-auto pt-6">
           <div key={vaultFilter} className="flex-1 overflow-y-auto pr-1 scrollbar-hide pb-4 animate-in fade-in duration-500">
             <ClipGrid
-              clips={filteredClips}
+              clips={paginatedClips}
               selectedIds={selectedIds}
               onSelect={handleSelect}
               onSelectAll={handleSelectAll}
@@ -238,6 +261,10 @@ export default function ProjectsPage() {
               onEdit={handleEdit}
               onPreview={handlePreview}
               loading={loading}
+              totalClips={filteredClips.length}
+              loadingNextPage={loadingNextPage}
+              onLoadMore={handleLoadMore}
+              hasMore={paginatedClips.length < filteredClips.length}
             />
           </div>
           
