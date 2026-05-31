@@ -157,7 +157,7 @@ export default function TransactionHistory({
           <h4 className="text-[13px] font-bold text-white uppercase tracking-wider">
             Recent Activity
           </h4>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
+          <div className="mt-2 flex flex-wrap items-center gap-2 gap-y-1">
             <a
               href={accountExpertUrl}
               target="_blank"

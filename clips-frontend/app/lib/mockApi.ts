@@ -2,6 +2,16 @@
 
 import { rateLimiter } from './rateLimiter';
 import { combineShares, splitSecret } from "./shamirRecovery";
+
+// Standardized API error class with code field
+class ApiError extends Error {
+  code: string;
+  constructor(message: string, code: string) {
+    super(message);
+    this.name = "ApiError";
+    this.code = code;
+  }
+}
 import type {
   DashboardStats,
   RevenuePoint,
@@ -103,7 +113,7 @@ export const login = rateLimiter(async (email: string, password?: string) => {
   const user = users.find(u => u.email === email);
   
   if (!user || (password && user.password !== password)) {
-    throw new Error("Invalid credentials");
+    throw new ApiError("Invalid credentials", "INVALID_CREDENTIALS");
   }
 
   const token = `fake-jwt-token-${user.id}`;
@@ -114,7 +124,7 @@ export const signup = rateLimiter(async (email: string, password?: string, name?
   await delay(800);
   
   if (users.find(u => u.email === email)) {
-    throw new Error("User already exists");
+    throw new ApiError("User already exists", "USER_EXISTS");
   }
 
   const newUser: User = {
@@ -147,9 +157,9 @@ export const resetPassword = rateLimiter(async (token: string, newPassword: stri
   const email = Object.keys(resetTokens).find(e => 
     resetTokens[e].token === token && resetTokens[e].expiresAt > Date.now()
   );
-  if (!email) throw new Error('Invalid or expired token');
+  if (!email) throw new ApiError('Invalid or expired token', 'INVALID_TOKEN');
   const user = users.find(u => u.email === email);
-  if (!user) throw new Error('User not found');
+  if (!user) throw new ApiError('User not found', 'USER_NOT_FOUND');
   user.password = newPassword;
   delete resetTokens[email];
   return { success: true };
@@ -159,9 +169,9 @@ export const mintCollection = rateLimiter(async (data: { collectionName: string;
   await delay(1800);
 
   const roll = Math.random();
-  if (roll < 0.25) throw new Error("WALLET_REJECTED");
-  if (roll < 0.4) throw new Error("NETWORK_ERROR");
-  if (roll < 0.5) throw new Error("UPLOAD_FAILED");
+  if (roll < 0.25) throw new ApiError("WALLET_REJECTED", "WALLET_REJECTED");
+  if (roll < 0.4) throw new ApiError("NETWORK_ERROR", "NETWORK_ERROR");
+  if (roll < 0.5) throw new ApiError("UPLOAD_FAILED", "UPLOAD_FAILED");
 
   return { success: true, txHash: `0x${Math.random().toString(16).slice(2, 18)}`, collection: data.collectionName };
 }, 10, 10000);
@@ -170,8 +180,8 @@ export const postClips = rateLimiter(async (clipIds: string[]) => {
   await delay(1400);
 
   const roll = Math.random();
-  if (roll < 0.2) throw new Error("NETWORK_ERROR");
-  if (roll < 0.3) throw new Error("PLATFORM_AUTH_EXPIRED");
+  if (roll < 0.2) throw new ApiError("NETWORK_ERROR", "NETWORK_ERROR");
+  if (roll < 0.3) throw new ApiError("PLATFORM_AUTH_EXPIRED", "PLATFORM_AUTH_EXPIRED");
 
   return { success: true, posted: clipIds.length };
 }, 10, 10000);
@@ -192,7 +202,7 @@ export const saveOnboarding = rateLimiter(async (userId: string, step: number, d
     }
   }
 
-  if (!user) throw new Error("User not found");
+  if (!user) throw new ApiError("User not found", "USER_NOT_FOUND");
 
   user.onboardingStep = step;
   user.profile = { ...user.profile, ...data };
