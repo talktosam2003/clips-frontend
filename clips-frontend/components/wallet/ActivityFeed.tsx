@@ -240,7 +240,7 @@ export default function ActivityFeed({
       </div>
 
       {/* Filter chips */}
-      <div className="flex items-center gap-2" role="group" aria-label="Filter transactions">
+      <div className="flex items-center gap-2 flex-wrap gap-y-1" role="group" aria-label="Filter transactions">
         <ListFilter className="w-3.5 h-3.5 text-muted shrink-0" aria-hidden="true" />
         {filterOptions.map((opt) => (
           <button

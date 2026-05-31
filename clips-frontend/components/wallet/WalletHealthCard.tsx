@@ -108,7 +108,7 @@ export default function WalletHealthCard({
   return (
     <div className="bg-surface border border-border rounded-[24px] p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-y-2">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-brand/10 border border-brand/20 flex items-center justify-center shrink-0">
             <Activity className="w-5 h-5 text-brand" aria-hidden="true" />

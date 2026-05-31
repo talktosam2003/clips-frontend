@@ -128,7 +128,7 @@ export default function QRCodeDisplay({
 
   return (
     <div className={`flex flex-col items-center gap-4 ${className}`}>
-      <div className="bg-white p-3 rounded-xl border border-[#E5E7EB]">
+      <div className="bg-white p-3 rounded-xl border border-[#E5E7EB] max-w-full">
         <canvas
           ref={canvasRef}
           className="w-64 h-64 block"
