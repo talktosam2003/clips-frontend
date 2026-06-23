@@ -1,17 +1,24 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Loader2, Link2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import AuthForm from "@/components/AuthForm";
+import { useAuth } from "@/components/AuthProvider";
 
 export default function Home() {
   const router = useRouter();
+  const { isLoading: authLoading } = useAuth();
   const [url, setUrl] = useState("");
   const [urlAnalyzing, setUrlAnalyzing] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const handleURLSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +103,42 @@ export default function Home() {
 
           {/* Right side - Login Modal */}
           <div className="w-full max-w-[440px] flex justify-end">
-            <AuthForm mode="login" />
+            {!isMounted || authLoading ? (
+              // Loading skeleton
+              <div className="w-full max-w-[440px] bg-input/40 border border-subtle rounded-[20px] p-8 backdrop-blur-sm animate-pulse">
+                <div className="h-8 bg-subtle rounded w-3/4 mb-2" />
+                <div className="h-4 bg-subtle rounded w-1/2 mb-8" />
+                
+                {/* Email field skeleton */}
+                <div className="space-y-4 mb-6">
+                  <div>
+                    <div className="h-4 bg-subtle rounded w-1/4 mb-2" />
+                    <div className="h-10 bg-subtle rounded" />
+                  </div>
+                  <div>
+                    <div className="h-4 bg-subtle rounded w-1/4 mb-2" />
+                    <div className="h-10 bg-subtle rounded" />
+                  </div>
+                  <div className="h-10 bg-brand/30 rounded" />
+                </div>
+
+                {/* Divider skeleton */}
+                <div className="relative mb-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-subtle" />
+                  </div>
+                </div>
+
+                {/* OAuth buttons skeleton */}
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <div key={i} className="h-10 bg-subtle rounded" />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <AuthForm mode="login" />
+            )}
           </div>
         </div>
       </main>
