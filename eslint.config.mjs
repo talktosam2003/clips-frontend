@@ -16,7 +16,12 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
   ]),
-  ...storybook.configs["flat/recommended"]
+  ...storybook.configs["flat/recommended"],
+  {
+    rules: {
+      '@next/next/no-img-element': 'error',
+    },
+  },
 ]);
 
 export default eslintConfig;
