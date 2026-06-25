@@ -1,3 +1,5 @@
+import { logger } from "@/app/lib/logger";
+
 /**
  * Amount Formatting Utilities for XLM and other currencies
  * 
@@ -114,7 +116,7 @@ export function formatAmount(
 
     return formatted;
   } catch (error) {
-    console.error('Error formatting amount:', error);
+    logger.error('Error formatting amount:', error);
     return numAmount.toFixed(decimals);
   }
 }
@@ -238,7 +240,7 @@ export function formatUSD(
       return formatted;
     }
   } catch (error) {
-    console.error('Error formatting USD:', error);
+    logger.error('Error formatting USD:', error);
     return currencyFormat === 'symbol' 
       ? `$${numAmount.toFixed(decimals)}`
       : `${numAmount.toFixed(decimals)} USD`;

@@ -28,6 +28,7 @@
  * - Stellar SDK: https://github.com/stellar/js-stellar-sdk
  */
 
+import { logger } from "@/app/lib/logger";
 import * as StellarSdk from "@stellar/stellar-sdk";
 import { getStellarNetwork, getHorizonUrl, getNetworkPassphrase } from "./networkConfig";
 import type { StellarNetwork } from "./networkConfig";
@@ -169,7 +170,7 @@ export async function buildSponsoredTransaction(
   try {
     baseFee = await server.fetchBaseFee();
   } catch {
-    console.warn("Failed to fetch base fee, using default");
+    logger.warn("Failed to fetch base fee, using default");
   }
 
   // Build the transaction
@@ -339,7 +340,7 @@ export async function buildRevokeSponsorshipTransaction(
   try {
     baseFee = await server.fetchBaseFee();
   } catch {
-    console.warn("Failed to fetch base fee, using default");
+    logger.warn("Failed to fetch base fee, using default");
   }
 
   const builder = new StellarSdk.TransactionBuilder(sponsorAccount, {

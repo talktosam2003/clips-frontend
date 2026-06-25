@@ -40,6 +40,7 @@ import { checkCsrf } from "@/app/lib/csrf";
 import { jobStore } from "@/app/api/jobs/shared/jobStore";
 import { dispatchJob } from "@/app/lib/aiBackend";
 import { MAX_UPLOAD_SIZE_BYTES } from "@/app/lib/constants";
+import { logger } from "@/app/lib/logger";
 
 export { MAX_UPLOAD_SIZE_BYTES };
 const ALLOWED_TYPES = ["video/mp4", "video/quicktime", "video/x-msvideo", "video/x-matroska"];
@@ -97,7 +98,7 @@ export async function POST(request: NextRequest) {
     }
 
     const scanConfig = getScanConfig();
-    console.log(`[Upload] Scanning enabled: ${scanConfig.enabled}, Provider: ${scanConfig.provider}`);
+    logger.info(`[Upload] Scanning enabled: ${scanConfig.enabled}, Provider: ${scanConfig.provider}`);
 
     // Upload all files to quarantine and scan them
     const results = await Promise.all(
@@ -111,26 +112,26 @@ export async function POST(request: NextRequest) {
           file.name,
           file.type || "application/octet-stream"
         );
-        console.log(`[Upload] File quarantined: ${quarantine.jobId} at ${quarantine.quarantineKey}`);
+        logger.info(`[Upload] File quarantined: ${quarantine.jobId} at ${quarantine.quarantineKey}`);
 
         // Step 2: Scan the file
         let scanResult;
         try {
           scanResult = await scanFile(buffer);
-          console.log(
+          logger.info(
             `[Upload] Scan complete for ${quarantine.jobId}: clean=${scanResult.isClean}, provider=${scanResult.provider}`
           );
         } catch (scanErr) {
           // Scan failed or timed out - treat as quarantined (not clean)
           const error = scanErr instanceof VirusScanError ? scanErr : new Error(String(scanErr));
-          console.error(`[Upload] Scan error for ${quarantine.jobId}: ${error.message}`);
+          logger.error(`[Upload] Scan error for ${quarantine.jobId}: ${error.message}`);
 
           // Delete the quarantined file since we can't verify it's safe
           try {
             await deleteFile(quarantine.quarantineKey);
-            console.log(`[Upload] Quarantined file deleted: ${quarantine.quarantineKey}`);
+            logger.info(`[Upload] Quarantined file deleted: ${quarantine.quarantineKey}`);
           } catch (deleteErr) {
-            console.error(`[Upload] Failed to delete quarantined file: ${deleteErr}`);
+            logger.error(`[Upload] Failed to delete quarantined file: ${deleteErr}`);
           }
 
           throw new Error(`File failed security scan (${error.message})`);
@@ -141,16 +142,16 @@ export async function POST(request: NextRequest) {
           // File is infected - delete it
           try {
             await deleteFile(quarantine.quarantineKey);
-            console.log(`[Upload] Infected file deleted: ${quarantine.quarantineKey}`);
+            logger.info(`[Upload] Infected file deleted: ${quarantine.quarantineKey}`);
           } catch (deleteErr) {
-            console.error(`[Upload] Failed to delete infected file: ${deleteErr}`);
+            logger.error(`[Upload] Failed to delete infected file: ${deleteErr}`);
           }
           throw new Error("File failed security scan");
         }
 
         // Step 4: Move from quarantine to final location
         const finalResult = await moveFromQuarantine(quarantine.jobId, quarantine.filename);
-        console.log(`[Upload] File released from quarantine: ${quarantine.jobId}`);
+        logger.info(`[Upload] File released from quarantine: ${quarantine.jobId}`);
 
         return {
           name: finalResult.filename,
@@ -222,7 +223,7 @@ export async function POST(request: NextRequest) {
       error instanceof Error &&
       error.message.startsWith("Missing required environment variable")
     ) {
-      console.error("Upload config error:", error.message);
+      logger.error("Upload config error:", error.message);
       const body: ApiResponse<null> = {
         data: null,
         error: "Cloud storage is not configured. Contact support.",
@@ -233,7 +234,7 @@ export async function POST(request: NextRequest) {
 
     // Virus scan errors
     if (error instanceof Error && error.message.includes("security scan")) {
-      console.error("Upload security error:", error.message);
+      logger.error("Upload security error:", error.message);
       const body: ApiResponse<null> = {
         data: null,
         error: "File failed security scan",
@@ -242,7 +243,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(body, { status: 400 });
     }
 
-    console.error("Upload error:", error);
+    logger.error("Upload error:", error);
     const body: ApiResponse<null> = {
       data: null,
       error: "Internal server error during upload",

@@ -11,6 +11,7 @@ import {
 import { getStellarNetwork } from "@/app/lib/networkConfig";
 import { captureSorobanNotSupportedWarning } from "@/app/lib/sentry";
 import { TRANSACTION_TIMEOUT_MS } from "@/app/lib/constants";
+import { logger } from "@/app/lib/logger";
 
 /**
  * Stellar transaction status

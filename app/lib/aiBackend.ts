@@ -1,3 +1,5 @@
+import { logger } from "@/app/lib/logger";
+
 /**
  * aiBackend.ts — thin client for dispatching video processing jobs to the AI
  * backend service.
@@ -59,7 +61,7 @@ export async function dispatchJob(payload: DispatchJobPayload): Promise<Dispatch
   const baseUrl = process.env.NEXT_PUBLIC_AI_API_URL;
 
   if (!baseUrl) {
-    console.warn(
+    logger.warn(
       `[aiBackend] NEXT_PUBLIC_AI_API_URL is not set — job ${payload.jobId} ` +
         "will remain in 'queued' status until the AI backend is configured."
     );
@@ -84,7 +86,7 @@ export async function dispatchJob(payload: DispatchJobPayload): Promise<Dispatch
 
     if (!res.ok) {
       const text = await res.text().catch(() => "(no body)");
-      console.error(
+      logger.error(
         `[aiBackend] Dispatch failed for job ${payload.jobId}: ` +
           `${res.status} ${res.statusText} — ${text}`
       );
@@ -101,7 +103,7 @@ export async function dispatchJob(payload: DispatchJobPayload): Promise<Dispatch
     };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`[aiBackend] Dispatch error for job ${payload.jobId}: ${message}`);
+    logger.error(`[aiBackend] Dispatch error for job ${payload.jobId}: ${message}`);
     return { dispatched: false, reason: message };
   }
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { BALANCE_REFRESH_INTERVAL_MS, PRICE_CACHE_TTL_MS } from "@/app/lib/constants";
+import { logger } from "@/app/lib/logger";
 
 /**
  * Balance data structure
@@ -207,7 +208,7 @@ export async function fetchXLMPrice(): Promise<XlmPriceResult> {
         }
       }
     } catch (err) {
-      console.warn("Failed to fetch XLM price:", err);
+      logger.warn("Failed to fetch XLM price:", err);
     } finally {
       _xlmPriceFetch = null;
     }

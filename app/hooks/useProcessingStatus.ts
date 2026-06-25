@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from "react";
 import { useProcessStore, selectHasHydrated } from "@/app/store/processStore";
 import { ProcessStatus } from "@/app/store/types";
 import { JOB_ESTIMATED_SECONDS } from "@/app/lib/constants";
+import { logger } from "@/app/lib/logger";
 
 interface JobStatus {
   progress: number;
@@ -79,7 +80,7 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
       const data: JobStatus = await response.json();
       updateFromData(data);
     } catch (error) {
-      console.error("Error fetching job status:", error);
+      logger.error("Error fetching job status:", error);
     }
   }, [jobId, updateFromData]);
 
@@ -99,12 +100,12 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
           const data: JobStatus = JSON.parse(event.data);
           updateFromData(data);
         } catch (error) {
-          console.error("Error parsing SSE data:", error);
+          logger.error("Error parsing SSE data:", error);
         }
       };
 
       es.onerror = () => {
-        console.warn("SSE connection failed, falling back to polling");
+        logger.warn("SSE connection failed, falling back to polling");
         stopSSE();
         startPollingFallback();
       };

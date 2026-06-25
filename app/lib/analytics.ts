@@ -1,3 +1,5 @@
+import { logger } from "@/app/lib/logger";
+
 /**
  * Analytics Tracking Utility
  * 
@@ -72,7 +74,7 @@ class Analytics {
         this.consentGiven = consent.analytics === true;
       }
     } catch (error) {
-      console.error('Failed to check analytics consent:', error);
+      logger.error('Failed to check analytics consent:', error);
       this.consentGiven = false;
     }
   }
@@ -112,7 +114,7 @@ class Analytics {
       this.isInitialized = true;
       this.log('Analytics initialized:', this.provider);
     } catch (error) {
-      console.error('Failed to initialize analytics:', error);
+      logger.error('Failed to initialize analytics:', error);
     }
   }
 
@@ -123,7 +125,7 @@ class Analytics {
     const measurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
     
     if (!measurementId) {
-      console.warn('GA4 measurement ID not configured');
+      logger.warn('GA4 measurement ID not configured');
       return;
     }
 
@@ -202,7 +204,7 @@ class Analytics {
    */
   private log(...args: any[]): void {
     if (this.debugMode) {
-      console.log('[Analytics]', ...args);
+      logger.debug('[Analytics]', ...args);
     }
   }
 
@@ -239,7 +241,7 @@ class Analytics {
           break;
       }
     } catch (error) {
-      console.error('Failed to track page view:', error);
+      logger.error('Failed to track page view:', error);
     }
   }
 
@@ -274,7 +276,7 @@ class Analytics {
           break;
       }
     } catch (error) {
-      console.error('Failed to track event:', error);
+      logger.error('Failed to track event:', error);
     }
   }
 
@@ -302,7 +304,7 @@ class Analytics {
         referrer: document.referrer,
       }),
     }).catch(error => {
-      console.error('Failed to send custom event:', error);
+      logger.error('Failed to send custom event:', error);
     });
   }
 
