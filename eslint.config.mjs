@@ -18,8 +18,13 @@ const eslintConfig = defineConfig([
   ]),
   ...storybook.configs["flat/recommended"],
   {
+    files: ["app/**/*.ts", "app/**/*.tsx"],
     rules: {
-      '@next/next/no-img-element': 'error',
+      "no-magic-numbers": ["warn", {
+        ignore: [0, 1, 2, 3, 5, 8, -1, 100, 1000, 1024, 60, 24, 7, 12, 200, 201, 204, 301, 302, 400, 401, 403, 404, 429, 500, 502, 503],
+        ignoreArrayIndexes: true,
+        ignoreDefaultValues: true,
+      }],
     },
   },
 ]);

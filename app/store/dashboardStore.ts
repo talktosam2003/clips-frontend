@@ -26,7 +26,9 @@ import { useUserStore } from "./userStore";
 // ─── Cache TTL ────────────────────────────────────────────────────────────────
 
 /** Re-use cached data for 5 minutes before hitting the API again */
-const CACHE_TTL_MS = 5 * 60 * 1000;
+import { DASHBOARD_CACHE_TTL_MS } from "@/app/lib/constants";
+const CACHE_TTL_MS = DASHBOARD_CACHE_TTL_MS;
+export { DASHBOARD_CACHE_TTL_MS };
 
 import { fetchDashboardFromAPI } from "./api";
 
