@@ -46,9 +46,7 @@ export interface JobStore {
   getAll(): Job[];
 }
 
-// ─── In-process Map implementation (dev / single-instance) ───────────────────
-// Replace this with a Redis/DB adapter in production by exporting a different
-// object that satisfies the JobStore interface above.
+import { JobRepository, createJobRepository } from "./jobRepository";
 
 class MapJobStore implements JobStore {
   private readonly map = new Map<string, Job>();
