@@ -10,6 +10,7 @@ import Skeleton from "@/components/ui/Skeleton";
 
 export default function ActivityPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [totalTransactionCount, setTotalTransactionCount] = useState(0);
   const { publicKey, status, network, error } = useAutoStellarWallet();
 
   const networkUpper = network === "testnet" ? "TESTNET" : "PUBLIC";
@@ -40,7 +41,7 @@ export default function ActivityPage() {
             <div>
               <h1 className="text-[22px] font-black text-white">Activity Feed</h1>
               <p className="text-[12px] text-muted">
-                Complete transaction history for your Stellar wallet
+                Complete transaction history for your Stellar wallet ({totalTransactionCount} total)
               </p>
             </div>
           </div>
@@ -110,7 +111,12 @@ export default function ActivityPage() {
           {/* Activity Feed */}
           {status === "ready" && publicKey && (
             <div className="bg-surface border border-border rounded-[24px] p-5 sm:p-6">
-              <ActivityFeed publicKey={publicKey} network={networkUpper} pageSize={20} />
+              <ActivityFeed
+                publicKey={publicKey}
+                network={networkUpper}
+                pageSize={20}
+                onTotalCountChange={setTotalTransactionCount}
+              />
             </div>
           )}
         </div>
