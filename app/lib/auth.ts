@@ -3,7 +3,9 @@ import Google from "next-auth/providers/google";
 import Apple from "next-auth/providers/apple";
 import Twitter from "next-auth/providers/twitter";
 import Instagram from "next-auth/providers/instagram";
+import Credentials from "next-auth/providers/credentials";
 import { jwtCallback, sessionCallback } from "./authCallbacks";
+import { MockApi } from "./mockApi";
 
 /**
  * Auth.js v5 configuration — Issue #530
@@ -79,6 +81,52 @@ export const authOptions: NextAuthConfig = {
       clientId: process.env.TIKTOK_CLIENT_KEY,
       clientSecret: process.env.TIKTOK_CLIENT_SECRET,
     },
+    Credentials({
+      id: "recovery",
+      name: "Recovery",
+      credentials: {
+        publicKey: { label: "Public Key", type: "text" },
+        signature: { label: "Signature", type: "text" },
+      },
+      async authorize(credentials, req) {
+        if (!credentials?.publicKey || !credentials?.signature) {
+          return null;
+        }
+
+        // Rate limiting
+        const ip = req.headers?.get("x-forwarded-for") || "unknown";
+        const now = Date.now();
+        const limit = MockApi.recoveryAttempts.get(ip);
+        if (limit && limit.lockUntil > now) {
+          throw new Error("Too many failed attempts. Try again later.");
+        }
+
+        try {
+          const user = await MockApi.verifyRecoverySignature(
+            credentials.publicKey as string,
+            credentials.signature as string
+          );
+          if (user) {
+            MockApi.recoveryAttempts.delete(ip);
+            return {
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              onboardingStep: user.onboardingStep,
+            };
+          }
+          throw new Error("Invalid signature");
+        } catch (error) {
+          const count = (limit?.count || 0) + 1;
+          if (count >= 5) {
+            MockApi.recoveryAttempts.set(ip, { count, lockUntil: now + 15 * 60 * 1000 });
+          } else {
+            MockApi.recoveryAttempts.set(ip, { count, lockUntil: 0 });
+          }
+          throw new Error("Authentication failed");
+        }
+      },
+    }),
   ],
   /** Action intercept hooks controlling lifecycle transitions during identity confirmation stages. */
   callbacks: {

@@ -36,12 +36,17 @@ export async function jwtCallback({
       token.profile = profile;
     }
 
-    const email = user?.email ?? (token.email as string | undefined);
-    if (email) {
-      token.onboardingStep = await fetchOnboardingStep(
-        email,
-        account.access_token
-      );
+    const onboardingStep = (user as any)?.onboardingStep;
+    if (typeof onboardingStep === "number") {
+      token.onboardingStep = onboardingStep;
+    } else {
+      const email = user?.email ?? (token.email as string | undefined);
+      if (email) {
+        token.onboardingStep = await fetchOnboardingStep(
+          email,
+          account.access_token
+        );
+      }
     }
   }
 

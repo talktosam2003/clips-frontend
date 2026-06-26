@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useWallet } from "@/components/wallet/WalletProvider";
 import { MockApi } from "@/app/lib/mockApi";
+import { signIn, getSession } from "next-auth/react";
+import * as StellarSdk from "@stellar/stellar-sdk";
 import { restoreWalletFromMnemonic } from "@/app/lib/stellar";
 import { decryptWithPassword } from "@/components/SocialRecoveryConfig";
 import { secureStorage } from "@/app/lib/secureStorage";
@@ -75,25 +77,34 @@ export default function RecoveryPage() {
         await secureStorage.setItem("clipcash_wallet", JSON.stringify(parsed));
       }
 
-      // 3. Authenticate user: Check if test user email or matching mock account
-      // For demo, if they use the test mnemonic, log them in as test user, otherwise create a mock recovered user
-      let loggedInUser = {
-        id: "recovered-user-id",
-        email: "recovered@clipcash.ai",
-        username: "recovered_user",
-        onboardingStep: 3,
-        name: "Recovered User",
-      };
+      // 3. Authenticate user via NextAuth Credentials provider
+      const keypair = StellarSdk.Keypair.fromSecret(wallet.secretKey);
+      const publicKey = keypair.publicKey();
+      const signatureBuffer = keypair.sign(Buffer.from("clipcash-recovery"));
+      const signature = signatureBuffer.toString("base64");
 
-      if (phrase.includes("abandon ability able about above absent")) {
-        loggedInUser = {
-          id: "test-user-id",
-          email: "test@example.com",
-          username: "testuser",
-          onboardingStep: 3,
-          name: "Test User",
-        };
+      const res = await signIn("recovery", {
+        publicKey,
+        signature,
+        redirect: false,
+      });
+
+      if (res?.error) {
+        throw new Error(res.error);
       }
+
+      const session = await getSession();
+      if (!session?.user) {
+        throw new Error("Failed to retrieve session after recovery.");
+      }
+
+      const loggedInUser = {
+        id: session.user.id || "",
+        email: session.user.email || "",
+        username: (session.user as any).username || "recovered_user",
+        onboardingStep: (session.user as any).onboardingStep || 3,
+        name: session.user.name || "Recovered User",
+      };
 
       setUser(loggedInUser);
       setSuccess("Wallet recovered successfully! Redirecting...");
@@ -208,24 +219,34 @@ export default function RecoveryPage() {
         }
       }
 
-      // 4. Log user in
-      let loggedInUser = {
-        id: "recovered-user-id",
-        email: socialEmail,
-        username: "recovered_user",
-        onboardingStep: 3,
-        name: "Recovered User",
-      };
+      // 4. Authenticate user via NextAuth
+      const keypair = StellarSdk.Keypair.fromSecret(wallet ? wallet.secretKey : decryptedBackup);
+      const publicKey = keypair.publicKey();
+      const signatureBuffer = keypair.sign(Buffer.from("clipcash-recovery"));
+      const signature = signatureBuffer.toString("base64");
 
-      if (socialEmail === "test@example.com") {
-        loggedInUser = {
-          id: "test-user-id",
-          email: "test@example.com",
-          username: "testuser",
-          onboardingStep: 3,
-          name: "Test User",
-        };
+      const res = await signIn("recovery", {
+        publicKey,
+        signature,
+        redirect: false,
+      });
+
+      if (res?.error) {
+        throw new Error(res.error);
       }
+
+      const session = await getSession();
+      if (!session?.user) {
+        throw new Error("Failed to retrieve session after social recovery.");
+      }
+
+      const loggedInUser = {
+        id: session.user.id || "",
+        email: session.user.email || socialEmail,
+        username: (session.user as any).username || "recovered_user",
+        onboardingStep: (session.user as any).onboardingStep || 3,
+        name: session.user.name || "Recovered User",
+      };
 
       setUser(loggedInUser);
       setSuccess("Wallet decrypted and restored! Redirecting to Dashboard...");
