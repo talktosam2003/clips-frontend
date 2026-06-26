@@ -45,6 +45,7 @@ export default function RecoveryPage() {
   const [isRecoverable, setIsRecoverable] = useState(false);
   const [recoveryPassword, setRecoveryPassword] = useState("");
   const [simulating, setSimulating] = useState(false);
+  const isDev = typeof process !== "undefined" && process.env.NODE_ENV !== "production";
 
   const handleMnemonicRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -425,7 +426,7 @@ export default function RecoveryPage() {
                     </div>
                   </div>
 
-                  {!isRecoverable && (
+                  {isDev && !isRecoverable && (
                     <button
                       type="button"
                       onClick={handleSimulateApprovals}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import EarningsLayout from "@/components/dashboard/EarningsLayout";
 import EarningsTable from "@/components/dashboard/EarningsTable";
 import StatCard from "@/components/dashboard/StatCard";
@@ -128,9 +128,69 @@ export default function EarningsPage() {
     loadData();
   }, [user?.id, page, pageSize]);
 
+  const generatePdfHtml = useCallback((exportData: Transaction[]) => {
+    const rows = exportData
+      .map(
+        (tx) =>
+          `<tr>
+            <td>${tx.date}</td>
+            <td>${tx.description}</td>
+            <td>$${tx.amount.toFixed(2)}</td>
+            <td>${tx.platform}</td>
+            <td>${tx.status}</td>
+            <td>${tx.taxId}</td>
+          </tr>`,
+      )
+      .join("");
+
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>ClipCash Earnings Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 24px; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .meta { color: #555; margin-bottom: 20px; font-size: 11px; }
+    .summary { display: flex; gap: 32px; margin-bottom: 24px; }
+    .summary div { background: #f5f5f5; padding: 12px 20px; border-radius: 8px; }
+    .summary strong { display: block; font-size: 18px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { background: #111; color: #fff; padding: 8px 10px; text-align: left; font-size: 11px; }
+    td { padding: 7px 10px; border-bottom: 1px solid #eee; }
+    tr:nth-child(even) td { background: #fafafa; }
+    @media print { body { padding: 0; } }
+  </style>
+</head>
+<body>
+  <h1>ClipCash Earnings & Tax Report</h1>
+  <p class="meta">Generated: ${new Date().toLocaleDateString()} &nbsp;|&nbsp; Total: $${summary.total}</p>
+  <div class="summary">
+    <div><span>Total Earned</span><strong>$${summary.total}</strong></div>
+    <div><span>Completed</span><strong>$${summary.completed}</strong></div>
+    <div><span>Pending</span><strong>$${summary.pending}</strong></div>
+  </div>
+  <table>
+    <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Platform</th><th>Status</th><th>Tax ID</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+</body>
+</html>`;
+  }, [summary]);
+
   const exportCSV = async (format: "csv" | "json" | "pdf") => {
     const exportData = filteredTransactions.length > 0 ? filteredTransactions : transactions;
     if (!user?.id || exportData.length === 0) return;
+
+    // For PDF, open the popup synchronously before any async operations
+    let pdfWindow: Window | null = null;
+    if (format === "pdf") {
+      pdfWindow = window.open("", "_blank");
+      if (!pdfWindow) {
+        alert("Pop-ups are blocked. Please allow pop-ups for this site to export PDF.");
+        return;
+      }
+    }
 
     setExporting(true);
     analytics.trackEarningsExport(format);
@@ -161,63 +221,14 @@ export default function EarningsPage() {
         const blob = new Blob([json], { type: "application/json;charset=utf-8;" });
         triggerDownload(blob, `clipcash-earnings-${monthStamp()}.json`);
 
-      } else if (format === "pdf") {
-        // Build a minimal printable HTML document and open the browser print dialog
-        const rows = exportData
-          .map(
-            (tx) =>
-              `<tr>
-                <td>${tx.date}</td>
-                <td>${tx.description}</td>
-                <td>$${tx.amount.toFixed(2)}</td>
-                <td>${tx.platform}</td>
-                <td>${tx.status}</td>
-                <td>${tx.taxId}</td>
-              </tr>`,
-          )
-          .join("");
+      } else if (format === "pdf" && pdfWindow) {
+        const html = generatePdfHtml(exportData);
 
-        const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>ClipCash Earnings Report</title>
-  <style>
-    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; padding: 24px; }
-    h1 { font-size: 20px; margin-bottom: 4px; }
-    .meta { color: #555; margin-bottom: 20px; font-size: 11px; }
-    .summary { display: flex; gap: 32px; margin-bottom: 24px; }
-    .summary div { background: #f5f5f5; padding: 12px 20px; border-radius: 8px; }
-    .summary strong { display: block; font-size: 18px; }
-    table { width: 100%; border-collapse: collapse; }
-    th { background: #111; color: #fff; padding: 8px 10px; text-align: left; font-size: 11px; }
-    td { padding: 7px 10px; border-bottom: 1px solid #eee; }
-    tr:nth-child(even) td { background: #fafafa; }
-    @media print { body { padding: 0; } }
-  </style>
-</head>
-<body>
-  <h1>ClipCash Earnings &amp; Tax Report</h1>
-  <p class="meta">Generated: ${new Date().toLocaleDateString()} &nbsp;|&nbsp; Total: $${summary.total}</p>
-  <div class="summary">
-    <div><span>Total Earned</span><strong>$${summary.total}</strong></div>
-    <div><span>Completed</span><strong>$${summary.completed}</strong></div>
-    <div><span>Pending</span><strong>$${summary.pending}</strong></div>
-  </div>
-  <table>
-    <thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Platform</th><th>Status</th><th>Tax ID</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-</body>
-</html>`;
-
-        const win = window.open("", "_blank");
-        if (win) {
-          win.document.write(html);
-          win.document.close();
-          win.focus();
-          win.print();
-        }
+        // Write to the already-opened window (synchronous, so no popup block)
+        pdfWindow.document.write(html);
+        pdfWindow.document.close();
+        pdfWindow.focus();
+        pdfWindow.print();
       }
     } catch (error) {
       console.error("Export failed:", error);

@@ -1,7 +1,7 @@
 /* eslint-disable react/no-unescaped-entities */
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Loader2, Link2, User as UserIcon, MonitorPlay, ArrowRight, CheckCircle2, Wallet, Info } from "lucide-react";
 import { useAuth } from "@/components/auth/AuthProvider";
 import Navbar from "@/components/Navbar";
@@ -96,6 +96,8 @@ function WalletAwarenessStep({ onContinue, loading }: { onContinue: () => void; 
   const [fundingError, setFundingError] = useState<string | null>(null);
   const { wallet } = useEmbeddedWallet();
   const { success, error } = useToast();
+  const isMountedRef = useRef(true);
+  const fundedKeyRef = useRef<string | null>(null);
 
   const { refresh } = useBalance({
     publicKey: wallet?.publicKey || null,
@@ -104,34 +106,52 @@ function WalletAwarenessStep({ onContinue, loading }: { onContinue: () => void; 
   });
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     // Auto-fund on testnet when wallet is available
     const fundWallet = async () => {
-      if (!IS_TESTNET || !wallet?.publicKey || isFunding || fundingSuccess) return;
-      
+      if (!wallet?.publicKey) return;
+
+      // Only fund once per wallet public key
+      if (fundedKeyRef.current === wallet.publicKey) return;
+
+      // Check conditions inside the effect body (not in deps)
+      if (!IS_TESTNET) return;
+
+      fundedKeyRef.current = wallet.publicKey;
       setIsFunding(true);
       setFundingError(null);
       
       try {
         await fundWithFriendbot(wallet.publicKey);
+        if (!isMountedRef.current) return;
         setFundingSuccess(true);
         success("Wallet funded with 10,000 XLM!");
         
         // Refresh balance a few times to ensure it updates
         for (let i = 0; i < 5; i++) {
+          if (!isMountedRef.current) return;
           await new Promise(resolve => setTimeout(resolve, 1000));
           refresh();
         }
       } catch (err) {
+        if (!isMountedRef.current) return;
         console.error("Friendbot funding failed:", err);
         setFundingError(err instanceof Error ? err.message : "Failed to fund wallet");
         error("Wallet funding failed. Please try again later.");
       } finally {
-        setIsFunding(false);
+        if (isMountedRef.current) {
+          setIsFunding(false);
+        }
       }
     };
 
     fundWallet();
-  }, [wallet?.publicKey, IS_TESTNET, isFunding, fundingSuccess, success, refresh]);
+
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [wallet?.publicKey]);
 
   return (
     <div className="w-full flex flex-col items-center justify-center animate-in zoom-in-95 fade-in duration-500 mt-12">

@@ -24,12 +24,19 @@ interface JobStatus {
  * @param enabled - Whether polling is enabled (default: true)
  * @returns Interface actions enabling consumers to explicitly suspend active transport listeners.
  */
-export function useProcessingStatus(jobId: string | null, enabled: boolean = true) {
+export function useProcessingStatus(jobId: string | null, enabled: boolean = true, maxReconnectAttempts: number = 3) {
   const hasHydrated = useProcessStore(selectHasHydrated);
   const { update, startProcess, resetProcess } = useProcessStore();
   const eventSourceRef = useRef<EventSource | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const isPollingRef = useRef(false);
+  const reconnectAttemptsRef = useRef(0);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const enabledRef = useRef(enabled);
+  const jobIdRef = useRef(jobId);
+  const isDestroyedRef = useRef(false);
+  const startSSERef = useRef<(() => void) | null>(null);
+  const startPollingFallbackRef = useRef<(() => void) | null>(null);
 
   // Don't start polling until the store is hydrated
   if (!hasHydrated) {
@@ -47,6 +54,14 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
     isPollingRef.current = false;
   }, []);
 
+  const stopReconnect = useCallback(() => {
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    reconnectAttemptsRef.current = 0;
+  }, []);
+
   /**
    * Disconnects continuous EventSource contexts, discarding open stream descriptors.
    */
@@ -55,6 +70,7 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
       eventSourceRef.current.close();
       eventSourceRef.current = null;
     }
+    reconnectAttemptsRef.current = 0;
   }, []);
 
   /**
@@ -63,7 +79,9 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
   const stopAll = useCallback(() => {
     stopSSE();
     stopPolling();
-  }, [stopSSE, stopPolling]);
+    stopReconnect();
+    isDestroyedRef.current = true;
+  }, [stopSSE, stopPolling, stopReconnect]);
 
   /**
    * Parses current chunk payloads, pushing update mutations down into central store layers.
@@ -107,29 +125,59 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
   }, [jobId, updateFromData]);
 
   useEffect(() => {
+    isDestroyedRef.current = false;
+    enabledRef.current = enabled;
+    jobIdRef.current = jobId;
+
     if (!enabled || !jobId) {
       stopAll();
       return;
     }
 
-    // Try SSE first
     const startSSE = () => {
-      const es = new EventSource(`/api/jobs/${jobId}/stream`);
+      if (isDestroyedRef.current) return;
+
+      const es = new EventSource(`/api/jobs/${jobIdRef.current}/stream`);
       eventSourceRef.current = es;
+      reconnectAttemptsRef.current = 0;
 
       es.onmessage = (event) => {
         try {
           const data: JobStatus = JSON.parse(event.data);
           updateFromData(data);
+          // Reset reconnection counter on successful message
+          reconnectAttemptsRef.current = 0;
         } catch (error) {
           logger.error("Error parsing SSE data:", error);
         }
       };
 
       es.onerror = () => {
-        logger.warn("SSE connection failed, falling back to polling");
-        stopSSE();
-        startPollingFallback();
+        if (isDestroyedRef.current) return;
+
+        // Immediately close the EventSource to prevent native auto-reconnect
+        es.close();
+        eventSourceRef.current = null;
+
+        reconnectAttemptsRef.current += 1;
+        const attempt = reconnectAttemptsRef.current;
+
+        logger.warn(`SSE connection error (attempt ${attempt}/${maxReconnectAttempts})`);
+
+        if (attempt >= maxReconnectAttempts) {
+          // Max attempts reached, fall back to polling
+          logger.warn("SSE max reconnect attempts reached, falling back to polling");
+          startPollingFallbackRef.current?.();
+        } else {
+          // Exponential backoff: 1s, 2s, 4s, ...
+          const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+          logger.info(`Reconnecting SSE in ${delay}ms (attempt ${attempt + 1}/${maxReconnectAttempts})`);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (!isDestroyedRef.current) {
+              startSSERef.current?.();
+            }
+          }, delay);
+        }
       };
     };
 
@@ -139,12 +187,18 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
       intervalRef.current = setInterval(fetchStatus, 3000);
     };
 
-    startSSE();
+    startSSERef.current = startSSE;
+    startPollingFallbackRef.current = startPollingFallback;
+
+    // Start with SSE
+    startSSERef.current();
 
     return () => {
       stopAll();
+      startSSERef.current = null;
+      startPollingFallbackRef.current = null;
     };
-  }, [jobId, enabled, fetchStatus, updateFromData, stopAll]);
+  }, [jobId, enabled, maxReconnectAttempts, fetchStatus, updateFromData, stopAll, stopReconnect]);
 
   return { stopPolling: stopAll };
 }
