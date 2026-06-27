@@ -7,7 +7,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { useWallet } from "@/components/wallet/WalletProvider";
 import { MockApi } from "@/app/lib/mockApi";
 import { restoreWalletFromMnemonic } from "@/app/lib/stellar";
-import { decryptWithPassword } from "@/components/SocialRecoveryConfig";
+import { decryptWithPassword } from "@/app/lib/cryptoUtils";
 import { secureStorage } from "@/app/lib/secureStorage";
 import {
   Shield,

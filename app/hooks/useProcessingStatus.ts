@@ -3,7 +3,6 @@
 import { useEffect, useRef, useCallback } from "react";
 import { useProcessStore, selectHasHydrated } from "@/app/store/processStore";
 import { ProcessStatus } from "@/app/store/types";
-import { JOB_ESTIMATED_SECONDS } from "@/app/lib/constants";
 import { logger } from "@/app/lib/logger";
 
 /** Real-time data schema updating background pipeline progress metrics */
@@ -203,28 +202,4 @@ export function useProcessingStatus(jobId: string | null, enabled: boolean = tru
   return { stopPolling: stopAll };
 }
 
-/**
- * Mock API endpoint for development/testing
- * This simulates a job status response
- * * @param jobId - Specific job tracking reference used to identify historical storage dumps.
- * @returns Instantly wrapped async simulated progress state structure.
- */
-export async function mockFetchJobStatus(jobId: string): Promise<JobStatus> {
-  // Simulate network delay
-  await new Promise((resolve) => setTimeout(resolve, 500));
 
-  // For demo purposes, simulate progress
-  const stored = localStorage.getItem(`job_${jobId}`);
-  const jobData = stored ? JSON.parse(stored) : null;
-
-  if (!jobData) {
-    return {
-      progress: 0,
-      status: "processing",
-      momentsFound: 0,
-      estimatedSecondsRemaining: JOB_ESTIMATED_SECONDS,
-    };
-  }
-
-  return jobData;
-}
